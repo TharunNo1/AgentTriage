@@ -213,3 +213,5 @@ __marimo__/
 # --- uv Cache ---
 # If you override the cache directory locally, ensure it isn't committed
 .uv_cache/
+
+.adk/

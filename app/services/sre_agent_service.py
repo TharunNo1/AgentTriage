@@ -11,7 +11,7 @@ class SREAgentService:
         self.runner = InMemoryRunner(agent=root_agent, app_name='sre_triage_root_agent')
         self.sessions = {}
 
-    async def analyze_and_report(self, error: str, trace_id: str, session_id: str = None):
+    async def analyze_and_report(self, error: str, trace_id: str, service_name: str, session_id: str = None):
         user_id = "poc"
         if not session_id:
             session = await self.runner.session_service.create_session(user_id=user_id, app_name='sre_triage_root_agent')
@@ -20,7 +20,15 @@ class SREAgentService:
 
         self.sessions[session_id] = session
 
-        user_message = types.Content(parts=[types.Part(text=f"Analyse and fix this error: {error}\nTraceID: {trace_id}")])
+        session_input_message = f"""
+        [INCOMING SIGNAL DETECTED]
+        -------------------------
+        Service Name : {service_name}
+        Trace ID     : {trace_id}
+        Error Signal : {error}
+        """
+        user_message = types.Content(
+            parts=[types.Part(text=session_input_message)])
 
         events = self.runner.run_async(
             session_id=session.id,

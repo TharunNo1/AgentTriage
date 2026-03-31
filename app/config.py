@@ -1,5 +1,11 @@
+import os
+from typing import Any
 from anyio.functools import lru_cache
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
 
@@ -15,9 +21,31 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
+    MOCKTRACES: bool = True
+    LOG_DIR: Path = REPO_ROOT / "logs"
+    LOG_FILE_PATH: Path = LOG_DIR / "mock_traces.log"
+
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
+    SMTP_USE_TLS: bool = True
+    SMTP_USER: str = os.getenv("SMTP_USER", "triage_agent")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")  # Gmail app-password
+
+    SRE_EMAIL_SENDER: str = "sre-alerts@triage.com"
+
+    ONCALL_EMAIL_GROUP: list[str] = []
+
+    @field_validator("ONCALL_EMAIL_GROUP", mode="before")
+    @classmethod
+    def parse_csv_emails(cls, v: Any) -> list[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            return [email.strip() for email in v.split(",")]
+        return []
     # Pydantic Configuration
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=REPO_ROOT / "app/.env",
         env_file_encoding="utf-8",
         extra="ignore"
     )

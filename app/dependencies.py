@@ -4,7 +4,6 @@ from redis.asyncio import Redis
 from app.services.sre_agent_service import SREAgentService
 from app.utils.redis_client import create_redis_client
 
-
 def get_agent_service():
     return SREAgentService()
 
