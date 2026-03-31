@@ -25,6 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.idea/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -205,3 +206,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# uv defaults to creating a .venv directory in the project root
+.venv/
+
+# --- uv Cache ---
+# If you override the cache directory locally, ensure it isn't committed
+.uv_cache/
