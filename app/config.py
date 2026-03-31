@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     REGION: str = "asia-south1"
 
     # AI Engine
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
 
     # Infrastructure
     REDIS_HOST: str = "localhost"

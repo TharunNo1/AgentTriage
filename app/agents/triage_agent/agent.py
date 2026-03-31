@@ -43,14 +43,16 @@ Classify the incident into one of these Tiers:
 2. If errors persist: Set Jira to HEALING_FAILED and escalate to Tier 3.
 
 ## OUTPUT STANDARD
-Return your final report using this exact labels (do not use curly braces in your logic):
-- Incident ID: [Jira ID]
-- Severity: [P0/P1/P2]
-- Service: [Name]
-- Tier: [1/2/3]
-- RCA Summary: [50 words max]
-- Action Taken: [Command or Status]
-- Status: [AUTO-RESOLVED/PENDING/ESCALATED]
+Return your final report using this exact labels 
+{
+  "Incident ID": "Jira ID",
+  "Severity": "P0/P1/P2",
+  "Service": "Name",
+  "Tier": "1/2/3",
+  "RCA Summary": "50 words max",
+  "Action Taken": "Command or Status",
+  "Status": "AUTO-RESOLVED/PENDING/ESCALATED"
+}
 """
 
 root_agent = Agent(

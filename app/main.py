@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -5,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import StreamingResponse
 
 from app.config import settings
 from app.schemas.triage import TriageRequest, TriageResponse
@@ -101,3 +103,14 @@ async def event_handler(request: TriageRequest, background_tasks: BackgroundTask
         occurrence_count=count,
         message="Triage Agent started looking into it"
     )
+
+@app.post("/ui/triage")
+async def event_handler_ui(request: TriageRequest, agent_service : AgentServiceDep, redis_client: RedisDep):
+    is_new_issue, count = await get_error_metrics(request.service_name, request.message, redis_client)
+
+    if not is_new_issue:
+        logger.warning("New issue: " + str(is_new_issue) + "Count: " + str(count))
+        async def short_event_generator():
+            yield f"data: {json.dumps({'type': 'text', 'content': 'OLD_ISSUE_TRIAGE'})}\n\n"
+        return StreamingResponse(short_event_generator(), media_type="text/event-stream")
+    return await agent_service.analyze_and_report_ui(request.message,request.service_name,request.trace_id)
