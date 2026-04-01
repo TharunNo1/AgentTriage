@@ -1,10 +1,12 @@
 from pydantic import BaseModel
 
+
 class TriageRequest(BaseModel):
     message: str
     trace_id: str
     service_name: str
     severity: str = "ERROR"
+
 
 class TriageResponse(BaseModel):
     status_code: int

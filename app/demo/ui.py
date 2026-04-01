@@ -1,9 +1,9 @@
+import json
 import os
 import re
 
-import streamlit as st
 import httpx
-import json
+import streamlit as st
 
 from app.config import settings
 
@@ -23,12 +23,12 @@ with st.sidebar:
 # 2. Main UI Layout
 thought_container = st.container(border=True)
 if os.path.exists(settings.LOG_FILE_PATH):
-    with open(settings.LOG_FILE_PATH, "r") as f:
+    with open(settings.LOG_FILE_PATH) as f:
         content = f.read()
 
     # 1. Split content by the Scenario Headers
     # This regex looks for the "--- SCENARIO: ... ---" pattern
-    scenarios = re.split(r'(--- SCENARIO: .*? ---)', content)
+    scenarios = re.split(r"(--- SCENARIO: .*? ---)", content)
 
     # scenarios[0] is usually empty or preamble, so we skip it
     # We iterate in steps of 2 to get [Header, Body] pairs
@@ -37,7 +37,7 @@ if os.path.exists(settings.LOG_FILE_PATH):
         body = scenarios[i + 1].strip()
 
         # Extract Trace ID from header for the label
-        trace_match = re.search(r'TRACE: ([\w-]+)', header)
+        trace_match = re.search(r"TRACE: ([\w-]+)", header)
         trace_id = trace_match.group(1) if trace_match else "Unknown"
 
         # 2. Render as a single integrated block
@@ -66,12 +66,15 @@ if trigger_btn:
 
     # We use httpx to connect to your FastAPI server
     with httpx.stream(
-            "POST",
-            "http://localhost:8000/ui/triage",
-            json={"service_name": service_name, "trace_id": trace_id, "message": error_message},
-            timeout=None
+        "POST",
+        "http://localhost:8000/ui/triage",
+        json={
+            "service_name": service_name,
+            "trace_id": trace_id,
+            "message": error_message,
+        },
+        timeout=None,
     ) as response:
-
         # Initialize a variable outside the loop to track the active status container
         active_tool_status = None
 
@@ -85,10 +88,7 @@ if trigger_btn:
                         active_tool_status.update(state="complete")
 
                     # Create the new status container
-                    active_tool_status = thought_container.status(
-                        f"🛠️ Executing: {payload['name']}",
-                        state="running"
-                    )
+                    active_tool_status = thought_container.status(f"🛠️ Executing: {payload['name']}", state="running")
                     active_tool_status.write(payload["args"])
 
                 elif payload["type"] == "output":
@@ -120,17 +120,16 @@ if trigger_btn:
                     try:
                         data = json.loads(full_response)
                         formatted_markdown = f"""
-                        - Incident ID: {data.get('Incident ID', 'N/A')}
-                        - Severity: {data.get('Severity', 'N/A')}
-                        - Service: {data.get('Service', 'N/A')}
-                        - Tier: {data.get('Tier', 'N/A')}
-                        - RCA Summary: {data.get('RCA Summary', 'N/A')}
-                        - Action Taken: {data.get('Action Taken', 'N/A')}
-                        - Status: {data.get('Status', 'N/A')}
+                        - Incident ID: {data.get("Incident ID", "N/A")}
+                        - Severity: {data.get("Severity", "N/A")}
+                        - Service: {data.get("Service", "N/A")}
+                        - Tier: {data.get("Tier", "N/A")}
+                        - RCA Summary: {data.get("RCA Summary", "N/A")}
+                        - Action Taken: {data.get("Action Taken", "N/A")}
+                        - Status: {data.get("Status", "N/A")}
                         """
                         report_placeholder.markdown(formatted_markdown)
                     except json.JSONDecodeError:
                         report_placeholder.markdown("⏳ *Generating structured report...*")
-
 
     st.success("Triage Complete.")
