@@ -1,16 +1,16 @@
 from google.adk.agents.llm_agent import Agent
-from app.utils.cloud_logging import fetch_trace_logs
-from app.config import settings
 from google.adk.tools import FunctionTool
 
+from app.config import settings
+from app.utils.cloud_logging import fetch_trace_logs
 from app.utils.jira_utils import sync_jira_issue
 from app.utils.mailing import send_group_email
 from app.utils.remediation_tasks import run_remediation_task
 
-fetch_trace_logs_tool    = FunctionTool(func=fetch_trace_logs)
-sync_jira_issue_tool     = FunctionTool(func=sync_jira_issue)
-run_remediation_tool     = FunctionTool(func=run_remediation_task)
-send_group_email_tool    = FunctionTool(func=send_group_email)
+fetch_trace_logs_tool = FunctionTool(func=fetch_trace_logs)
+sync_jira_issue_tool = FunctionTool(func=sync_jira_issue)
+run_remediation_tool = FunctionTool(func=run_remediation_task)
+send_group_email_tool = FunctionTool(func=send_group_email)
 
 SRE_INSTRUCTION = """
 ## ROLE
@@ -20,7 +20,14 @@ Objective: Minimize MTTR via automated triage, Jira synchronization, and tiered 
 ## WORKFLOW
 
 ### PHASE 1: TRIAGE & DEDUPLICATION
-1. **Extract Context**: Call `fetch_trace_logs`. Identify: Service, Error Code, Resource ID, RCA Summary, Severity, and Root Cause Category.
+1. **Extract Context**: Call `fetch_trace_logs`. 
+   - Identify: 
+        - Service
+        - Error Code
+        - Resource ID
+        - RCA Summary
+        - Severity
+        - Root Cause Category
 2. **Jira Sync**: Call `sync_jira_issue`. 
    - If ticket exists: Append logs and Trace ID.
    - If new: Create High-Priority ticket with extracted context.
@@ -57,7 +64,7 @@ Return your final report using this exact labels
 
 root_agent = Agent(
     model=settings.GEMINI_MODEL,
-    name='sre_triage_root_agent',
+    name="sre_triage_root_agent",
     description=(
         "An autonomous SRE agent capable of fetching Google Cloud logs, "
         "performing trace-based root cause analysis, and providing gcloud remediation commands."

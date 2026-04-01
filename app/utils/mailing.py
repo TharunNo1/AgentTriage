@@ -1,43 +1,57 @@
-import time
 import logging
 import smtplib
-from email.mime.text import MIMEText
+import time
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate, make_msgid
-from typing import Optional
+from typing import Any
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 SEVERITY_META = {
-    "P0": {"border": "#FC8181", "badge_bg": "#E53E3E", "header_bg": "#FFF5F5", "label": "CRITICAL"},
-    "P1": {"border": "#F6AD55", "badge_bg": "#DD6B20", "header_bg": "#FFFAF0", "label": "HIGH"},
-    "P2": {"border": "#63B3ED", "badge_bg": "#3182CE", "header_bg": "#EBF8FF", "label": "MEDIUM"},
+    "P0": {
+        "border": "#FC8181",
+        "badge_bg": "#E53E3E",
+        "header_bg": "#FFF5F5",
+        "label": "CRITICAL",
+    },
+    "P1": {
+        "border": "#F6AD55",
+        "badge_bg": "#DD6B20",
+        "header_bg": "#FFFAF0",
+        "label": "HIGH",
+    },
+    "P2": {
+        "border": "#63B3ED",
+        "badge_bg": "#3182CE",
+        "header_bg": "#EBF8FF",
+        "label": "MEDIUM",
+    },
 }
+
 
 def _build_html(
     subject: str,
     severity: str,
     body: str,
-    incident_id: Optional[str],
-    trace_id: Optional[str],
-    service_name: Optional[str],
-    ticket_url: Optional[str],
+    incident_id: str | None,
+    trace_id: str | None,
+    service_name: str | None,
+    ticket_url: str | None,
     timestamp: str,
 ) -> str:
+    subject = subject or "Triage Agent Reporting Issues - Realtime"
     sm = SEVERITY_META.get(severity, SEVERITY_META["P0"])
 
     ticket_cell = (
         f'<a href="{ticket_url}" style="color:#3182CE;text-decoration:none;">{incident_id}</a>'
-        if ticket_url else (incident_id or "N/A")
+        if ticket_url
+        else (incident_id or "N/A")
     )
 
-    body_html = "\n".join(
-        f"<p style='margin:6px 0'>{line}</p>"
-        for line in body.strip().splitlines()
-        if line.strip()
-    )
+    body_html = "\n".join(f"<p style='margin:6px 0'>{line}</p>" for line in body.strip().splitlines() if line.strip())
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -49,14 +63,14 @@ def _build_html(
              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#2D3748;">
 
   <div style="max-width:600px;margin:0 auto;background:#fff;
-              border:1px solid {sm['border']};border-radius:8px;overflow:hidden;">
+              border:1px solid {sm["border"]};border-radius:8px;overflow:hidden;">
 
     <!-- Header -->
-    <div style="background:{sm['header_bg']};border-bottom:1px solid {sm['border']};padding:20px 24px;">
-      <span style="display:inline-block;background:{sm['badge_bg']};color:#fff;
+    <div style="background:{sm["header_bg"]};border-bottom:1px solid {sm["border"]};padding:20px 24px;">
+      <span style="display:inline-block;background:{sm["badge_bg"]};color:#fff;
                    font-size:11px;font-weight:700;letter-spacing:.8px;
                    padding:3px 10px;border-radius:4px;text-transform:uppercase;">
-        {severity} — {sm['label']}
+        {severity} — {sm["label"]}
       </span>
       <h1 style="margin:10px 0 0;font-size:17px;font-weight:600;color:#1A202C;">
         {subject}
@@ -100,15 +114,16 @@ def _build_html(
 </body>
 </html>"""
 
+
 def send_group_email(
-    subject: str | None = None,
-    body: str | None = None,
+    subject: str,
+    body: str,
     severity: str = "P0",
-    incident_id: Optional[str] = None,
-    trace_id: Optional[str] = None,
-    service_name: Optional[str] = None,
-    ticket_url: Optional[str] = None,
-) -> dict:
+    incident_id: str | None = None,
+    trace_id: str | None = None,
+    service_name: str | None = None,
+    ticket_url: str | None = None,
+) -> dict[Any, Any]:
     """
     Sends an HTML incident email via SMTP to the on-call group
     defined in settings.ONCALL_EMAIL_GROUP.
@@ -136,27 +151,33 @@ def send_group_email(
             error            (str)  — Present only on failure.
     """
     recipients = settings.ONCALL_EMAIL_GROUP
-    timestamp  = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     message_id = make_msgid(domain=settings.SRE_EMAIL_SENDER.split("@")[-1])
 
     if not recipients:
         logger.error("send_group_email: ONCALL_EMAIL_GROUP is empty in settings.py")
         return {
-            "success":   False,
-            "error":     "ONCALL_EMAIL_GROUP is empty — add recipients to settings.py",
+            "success": False,
+            "error": "ONCALL_EMAIL_GROUP is empty — add recipients to settings.py",
             "message_id": message_id,
         }
 
     html_body = _build_html(
-        subject, severity, body,
-        incident_id, trace_id, service_name, ticket_url, timestamp,
+        subject,
+        severity,
+        body,
+        incident_id,
+        trace_id,
+        service_name,
+        ticket_url,
+        timestamp,
     )
 
-    msg = MIMEMultipart()                          # multipart keeps headers clean
-    msg["Subject"]    = subject
-    msg["From"]       = formataddr(("SRE Engine", settings.SRE_EMAIL_SENDER))
-    msg["To"]         = ", ".join(recipients)
-    msg["Date"]       = formatdate(localtime=False)
+    msg = MIMEMultipart()  # multipart keeps headers clean
+    msg["Subject"] = subject
+    msg["From"] = formataddr(("SRE Engine", settings.SRE_EMAIL_SENDER))
+    msg["To"] = ", ".join(recipients)
+    msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = message_id
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -169,16 +190,13 @@ def send_group_email(
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.SRE_EMAIL_SENDER, recipients, msg.as_string())
 
-        logger.info(
-            f"[EMAIL SENT] id={message_id} subject='{subject}' "
-            f"to={recipients} severity={severity}"
-        )
+        logger.info(f"[EMAIL SENT] id={message_id} subject='{subject}' to={recipients} severity={severity}")
         return {
-            "success":          True,
-            "message_id":       message_id,
-            "recipients":       recipients,
+            "success": True,
+            "message_id": message_id,
+            "recipients": recipients,
             "recipients_count": len(recipients),
-            "timestamp":        timestamp,
+            "timestamp": timestamp,
         }
 
     except smtplib.SMTPAuthenticationError:

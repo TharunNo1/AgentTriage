@@ -1,14 +1,15 @@
 import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
-from anyio.functools import lru_cache
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-class Settings(BaseSettings):
 
+class Settings(BaseSettings):
     # GCP Configuration
     PROJECT_ID: str = "agent-triage"
     REGION: str = "asia-south1"
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
     SMTP_USE_TLS: bool = True
     SMTP_USER: str = os.getenv("SMTP_USER", "triage_agent")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")  # Gmail app-password
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "password-agent")  # Gmail app-password
 
     SRE_EMAIL_SENDER: str = "sre-alerts@triage.com"
 
@@ -43,15 +44,14 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [email.strip() for email in v.split(",")]
         return []
-    # Pydantic Configuration
-    model_config = SettingsConfigDict(
-        env_file=REPO_ROOT / "app/.env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
 
-@lru_cache()
+    # Pydantic Configuration
+    model_config = SettingsConfigDict(env_file=REPO_ROOT / "app/.env", env_file_encoding="utf-8", extra="ignore")
+
+
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
+
 
 settings: Settings = get_settings()
