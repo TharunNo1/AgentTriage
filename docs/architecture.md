@@ -56,7 +56,9 @@ flowchart LR
    - Tier 1 and policy `ALLOW` → `REMEDIATING` → enqueue `execute_remediation`
    - Tier 2 or policy `REQUIRE_APPROVAL` → `AWAITING_APPROVAL` → Slack/email approval request + `expire_approval` deferred job
    - Tier 3, policy `DENY`, or agent failure → `ESCALATED` → page on-call
-3. **Approval**: signed callback → `REMEDIATING` (approved) or `ESCALATED` (rejected/expired).
+3. **Approval**: signed callback → `REMEDIATING` (approved). A rejection needs a reason and does not page:
+   `false_positive` → `SUPPRESSED`, `handle_manually` → `MANUAL`, `wrong_action` → re-triage once. Only an
+   unanswered approval that expires → `ESCALATED` (see ADR 0006).
 4. **Remediation job**: executes the typed action via the Kubernetes executor (or records it in `dry_run`) →
    `VERIFYING` → deferred `verify_remediation`.
 5. **Verification job**: re-checks signals/logs → `RESOLVED` or `ESCALATED`.

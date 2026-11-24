@@ -18,7 +18,7 @@ Alembic migrations. Core tables:
 - `alert_signals` — raw normalized signals linked to an incident (dedup attaches new signals to an open incident)
 - `incident_events` — append-only timeline / audit log of every state transition, tool call, and decision
 - `remediation_actions` — proposed/executed actions, policy verdict, dry-run flag, result
-- `approvals` — approval requests, approver, decision, expiry, signed-token hash
+- `approvals` — approval requests, approver, decision, rejection reason, expiry, signed-token hash
 - `agent_runs` — model, prompt version, tokens, latency, outcome
 - `api_clients` — webhook sources and hashed credentials
 
