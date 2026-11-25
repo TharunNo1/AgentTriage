@@ -4,7 +4,7 @@ Autonomous SRE incident triage. Agent Triage receives alerts, deduplicates them 
 
 See [docs/architecture.md](docs/architecture.md) for the design, [docs/adr/](docs/adr/README.md) for architecture decisions, and [AGENTS.md](AGENTS.md) for contribution and coding standards.
 
-> **Status: Phase 1 (core platform).** The triage agent, ticketing, notifications and remediation run behind interfaces with deterministic mock adapters. Remediation is dry-run only. Real Gemini, Jira, Slack and Kubernetes adapters land in phases 2 and 3.
+> **Status: Phase 2 rollout.** Gemini analysis is opt-in. The default triage agent, ticketing, and notifications use deterministic adapters. Remediation is dry-run only. Jira, Slack, email, log and Kubernetes adapters are planned.
 
 ## How it works
 
@@ -33,6 +33,15 @@ curl localhost:8000/v1/incidents -H "Authorization: Bearer $OPERATOR_KEY"
 ```
 
 OpenAPI docs are served at `http://localhost:8000/docs`; Prometheus metrics at `/metrics`.
+
+## Gemini analysis
+
+To enable Gemini, set `TRIAGE_TRIAGE_AGENT=gemini`, `TRIAGE_GEMINI_MODEL` to a model that supports structured
+output, and `TRIAGE_GEMINI_API_KEY` in the worker environment. Enable this only for incident data approved for
+processing by Gemini. The worker sends bounded excerpts of alert messages, service and title, and operator feedback.
+It records the analysis and escalates the incident for operator review. The mock agent remains the default.
+
+Run `uv run pytest tests/evals` to replay structured triage responses offline.
 
 ## API
 

@@ -83,3 +83,6 @@ Every transition appends to `incident_events`, which is the audit log and the so
 2. **Agent + integrations** — `LLMProvider` (Gemini), prompts, evals, real Jira/Slack/email/log adapters, approval flow.
 3. **Remediation + ops** — policy engine, Kubernetes executor, verification, OpenTelemetry, metrics, Helm chart.
 4. **Dashboard** — React operator UI.
+
+The first Phase 2 slice offers opt-in, single-call Gemini analysis of bounded alert evidence. It records the result
+and escalates for operator review. See [ADR 0012](adr/0012-gemini-analysis-rollout.md) for the rollout scope.
