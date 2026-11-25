@@ -47,4 +47,12 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --all-extras --dev --locked
-      - run: uv run pytest
+      - name: Unit and integration tests (testcontainers)
+        run: uv run pytest --cov=app --cov-report=term-missing
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t agent-triage:ci .

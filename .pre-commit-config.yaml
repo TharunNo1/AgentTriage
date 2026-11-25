@@ -3,13 +3,13 @@ repos:
     rev: v0.9.7
     hooks:
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.5.0
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - pydantic
-          - fastapi
-          - types-redis
+        name: mypy
+        entry: uv run mypy app
+        language: system
+        types: [python]
+        pass_filenames: false

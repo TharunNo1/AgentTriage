@@ -1,6 +1,6 @@
 # 0007. Agent layer: model-agnostic interface, Gemini default
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-24
 - Deciders: Tharun
 

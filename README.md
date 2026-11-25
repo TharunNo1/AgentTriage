@@ -1,60 +1,75 @@
-Agent Triage
----
-Agent Triage is an industry-grade autonomous SRE agent that leverages self-healing mechanisms to detect anomalies, perform root cause analysis, and execute remediation workflows in distributed systems.
+# Agent Triage
 
-🚀 Core Features
----
-- **Autonomous Anomaly Detection:** Continuous monitoring of distributed traces and metrics to identify deviations before they become outages.
+Autonomous SRE incident triage. Agent Triage receives alerts, deduplicates them into incidents, analyses each incident, and either remediates it within policy, asks a human for approval, or escalates it. Every state change is persisted and audited.
 
+See [docs/architecture.md](docs/architecture.md) for the design, [docs/adr/](docs/adr/README.md) for architecture decisions, and [AGENTS.md](AGENTS.md) for contribution and coding standards.
 
-- **Intelligent RCA:** Leverages LLM-driven reasoning to correlate logs, metrics, and events to find the "smoking gun."
+> **Status: Phase 1 (core platform).** The triage agent, ticketing, notifications and remediation run behind interfaces with deterministic mock adapters. Remediation is dry-run only. Real Gemini, Jira, Slack and Kubernetes adapters land in phases 2 and 3.
 
+## How it works
 
-- **Self-Healing Workflows:** Automatically executes pre-defined or dynamically generated remediation scripts (e.g., clearing caches, scaling pods, or rolling back deployments).
+```text
+Alertmanager / GCP Monitoring / generic JSON
+  → POST /v1/alerts/*   (API key or HMAC, size limit, rate limit, idempotency)
+  → fingerprint + dedup into one open incident per failure (Postgres)
+  → arq worker: triage → AWAITING_APPROVAL | REMEDIATING | ESCALATED
+  → remediation (dry-run) → VERIFYING → RESOLVED | ESCALATED
+```
 
-🛠 Installation and Setup
----
-1. Prerequisites
-Ensure you have Docker and Python 3.10+ installed. This project uses uv for lightning-fast dependency management.
+Approval rejections route by reason: `false_positive` → `SUPPRESSED` (fingerprint muted), `handle_manually` → `MANUAL` (assigned to the approver), `wrong_action` → re-triage once with the operator's note. See [ADR 0006](docs/adr/0006-incident-state-machine.md).
 
+## Quick start (Docker)
 
-2. Start the Infrastructure
-Agent Triage requires Redis for state management and task queuing.
+```bash
+docker compose -f deploy/docker-compose.yml up --build -d
+# create API keys (printed once)
+docker compose -f deploy/docker-compose.yml exec api agent-triage create-api-key --name alertmanager --scopes ingest
+docker compose -f deploy/docker-compose.yml exec api agent-triage create-api-key --name oncall --scopes operator
 
-    ```bash
-    docker run -d --name redis-triage -p 6379:6379 redis:latest
-    ```
+curl -X POST localhost:8000/v1/alerts/generic \
+  -H "Authorization: Bearer $INGEST_KEY" -H "Content-Type: application/json" \
+  -d '{"service":"checkout","title":"Pod crash","message":"container OOMKilled exit code 137"}'
+curl localhost:8000/v1/incidents -H "Authorization: Bearer $OPERATOR_KEY"
+```
 
-3. Configure Environment
-Copy the template and fill in your credentials (API keys, connection strings, etc.):
+OpenAPI docs are served at `http://localhost:8000/docs`; Prometheus metrics at `/metrics`.
 
-    ```bash
-    cp .env.template .env
-    ```
+## API
 
-4. Start the Backend (FastAPI)
-The backend handles the agent logic and orchestration.
+| Method | Path | Scope | Purpose |
+|---|---|---|---|
+| POST | `/v1/alerts/alertmanager` | ingest | Alertmanager webhook (v4) |
+| POST | `/v1/alerts/gcp-monitoring` | ingest | Cloud Monitoring webhook |
+| POST | `/v1/alerts/generic` | ingest | Generic JSON alert |
+| GET | `/v1/incidents` | operator | List incidents (cursor pagination, `status`, `service` filters) |
+| GET | `/v1/incidents/{id}` | operator | Incident detail |
+| GET | `/v1/incidents/{id}/events` | operator | Audit timeline |
+| POST | `/v1/incidents/{id}/approval` | operator | `{"decision":"approve"}` or `{"decision":"reject","reason":"false_positive\|handle_manually\|wrong_action"}` |
+| POST | `/v1/incidents/{id}/transition` | operator | Manually move to `RESOLVED`, `SUPPRESSED` or `MANUAL` |
+| GET | `/healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, metrics |
 
-    ```bash
-    pip install uv
-    uv sync
-    uvicorn app.main:app --reload
-    ```
-5. Launch the Dashboard (Streamlit)
-The UI provides a real-time view of agent activity and system health.
+**Authentication:** `Authorization: Bearer <api key>` (keys are stored hashed), or for webhook senders that cannot set bearer tokens, HMAC: `X-Triage-Client`, `X-Triage-Timestamp` (unix seconds) and `X-Triage-Signature: sha256=hex(HMAC(secret, "<timestamp>.<raw body>"))`, with secrets in `TRIAGE_WEBHOOK_HMAC_SECRETS`. Send `Idempotency-Key` to make retries safe. Errors are `application/problem+json`.
 
-    ```bash
-    python -m streamlit run app/demo/ui.py
-    ```
+## Development
 
-🏗 System Architecture
----
-The system operates on a closed-loop feedback mechanism:
+Requires Python 3.13, [uv](https://docs.astral.sh/uv/) and Docker.
 
-- Observe: Collects telemetry from the distributed system.
+```bash
+uv sync --all-groups
+pre-commit install
+cp .env.example .env
+docker compose -f deploy/docker-compose.yml up -d postgres redis
+uv run alembic upgrade head
+uv run uvicorn app.api.main:create_app --factory --reload   # API
+uv run arq app.workers.main.WorkerSettings                  # worker
 
-- Orient: Detects anomalies and analyzes the impact.
+uv run ruff check . && uv run ruff format --check . && uv run mypy app
+uv run pytest            # unit + integration (integration tests start Postgres/Redis via testcontainers)
+uv run pytest tests/unit # fast, no Docker
+```
 
-- Decide: Performs RCA and selects a remediation strategy.
+Configuration is environment-driven (`TRIAGE_*`); see [.env.example](.env.example) and `app/core/settings.py`.
 
-- Act: Executes the workflow and verifies system recovery.
+## License
+
+See [LICENSE](LICENSE).
