@@ -35,7 +35,8 @@ def configure_logging(level: str = "INFO", json: bool = True) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
-    for noisy in ("uvicorn.access",):
+    # HTTPX request logs include full URLs, including Slack webhook credentials.
+    for noisy in ("uvicorn.access", "httpx"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

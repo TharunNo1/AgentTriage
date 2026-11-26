@@ -1,7 +1,9 @@
 import uuid
+from contextlib import AsyncExitStack
 from datetime import timedelta
 from typing import Any
 
+import httpx
 from arq import Retry, cron
 from arq.connections import RedisSettings
 
@@ -11,6 +13,7 @@ from app.core.logging import configure_logging, get_logger
 from app.core.metrics import JOBS
 from app.core.settings import get_settings
 from app.db.session import create_engine, create_sessionmaker
+from app.integrations.notify.slack import SlackDeliveryError, SlackNotifier
 from app.integrations.registry import build_integrations
 from app.services.guards import RedisGuards
 from app.services.queue import ArqJobQueue
@@ -22,33 +25,38 @@ settings = get_settings()
 
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(settings.log_level, settings.log_json)
-    integrations = build_integrations(settings)
-    if settings.triage_agent == "gemini":
-        key, model = settings.gemini_api_key, settings.gemini_model
-        if key is None or not key.get_secret_value().strip() or model is None or not model.strip():
-            raise RuntimeError("Gemini triage requires TRIAGE_GEMINI_API_KEY and TRIAGE_GEMINI_MODEL")
-        provider = GeminiProvider(api_key=key.get_secret_value(), model=model.strip())
-        try:
-            integrations = build_integrations(settings, agent=StructuredTriageAgent(provider))
-        except Exception:
-            await provider.aclose()
-            raise
-        ctx["gemini_provider"] = provider
-    engine = create_engine(settings)
-    ctx["engine"] = engine
-    ctx["workflow"] = Workflow(
-        create_sessionmaker(engine), ArqJobQueue(ctx["redis"]), RedisGuards(ctx["redis"]), integrations, settings
-    )
-    log.info("worker_started", remediation_mode=settings.remediation_mode)
+    async with AsyncExitStack() as resources:
+        agent = None
+        if settings.triage_agent == "gemini":
+            key, model = settings.gemini_api_key, settings.gemini_model
+            if key is None or not key.get_secret_value().strip() or model is None or not model.strip():
+                raise RuntimeError("Gemini triage requires TRIAGE_GEMINI_API_KEY and TRIAGE_GEMINI_MODEL")
+            provider = GeminiProvider(api_key=key.get_secret_value(), model=model.strip())
+            resources.push_async_callback(provider.aclose)
+            agent = StructuredTriageAgent(provider)
+
+        notifier = None
+        if settings.notifier == "slack":
+            webhook = settings.slack_webhook_url
+            if webhook is None:
+                raise RuntimeError("Slack notifications require TRIAGE_SLACK_WEBHOOK_URL")
+            client = await resources.enter_async_context(httpx.AsyncClient())
+            notifier = SlackNotifier(client, webhook.get_secret_value())
+
+        integrations = build_integrations(settings, agent=agent, notifier=notifier)
+        engine = create_engine(settings)
+        resources.push_async_callback(engine.dispose)
+        ctx["engine"] = engine
+        ctx["workflow"] = Workflow(
+            create_sessionmaker(engine), ArqJobQueue(ctx["redis"]), RedisGuards(ctx["redis"]), integrations, settings
+        )
+        ctx["resources"] = resources.pop_all()
+    log.info("worker_started", remediation_mode=settings.remediation_mode, notifier=settings.notifier)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
-    provider: GeminiProvider | None = ctx.get("gemini_provider")
-    try:
-        if provider is not None:
-            await provider.aclose()
-    finally:
-        await ctx["engine"].dispose()
+    resources: AsyncExitStack = ctx["resources"]
+    await resources.aclose()
 
 
 def _wf(ctx: dict[str, Any]) -> Workflow:
@@ -98,8 +106,17 @@ async def sync_ticket(ctx: dict[str, Any], incident_id: str) -> None:
 async def send_notification(ctx: dict[str, Any], incident_id: str, kind: str) -> None:
     try:
         await _wf(ctx).send_notification(uuid.UUID(incident_id), kind)
+    except SlackDeliveryError as exc:
+        exhausted = int(ctx["job_try"]) >= settings.job_max_tries
+        retry = exc.retryable and not exhausted
+        JOBS.labels(job="send_notification", outcome="retry" if retry else "failed").inc()
+        log.warning("slack_notification_failed", incident_id=incident_id, kind=kind, retry=retry, error=str(exc))
+        if retry:
+            raise Retry(defer=_backoff(ctx)) from exc
+        raise
     except Exception as exc:
         raise Retry(defer=_backoff(ctx)) from exc
+    JOBS.labels(job="send_notification", outcome="ok").inc()
 
 
 async def requeue_stuck_incidents(ctx: dict[str, Any]) -> None:
