@@ -9,6 +9,7 @@ dependencies = [
     "arq>=0.26",
     "asyncpg>=0.29",
     "fastapi>=0.165.0",
+    "google-genai>=3.6,<4",
     "prometheus-client>=0.21",
     "pydantic>=2.14.4",
     "pydantic-settings>=2.16.3",

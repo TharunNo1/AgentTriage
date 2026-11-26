@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     max_reproposals: int = 1
     stuck_incident_seconds: int = 60
 
-    triage_agent: Literal["mock"] = "mock"
+    triage_agent: Literal["mock", "gemini"] = "mock"
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str | None = None
     ticketing: Literal["mock"] = "mock"
     notifier: Literal["mock"] = "mock"
 

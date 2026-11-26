@@ -5,6 +5,8 @@ from typing import Any
 from arq import Retry, cron
 from arq.connections import RedisSettings
 
+from app.agent.gemini import GeminiProvider
+from app.agent.triage import StructuredTriageAgent
 from app.core.logging import configure_logging, get_logger
 from app.core.metrics import JOBS
 from app.core.settings import get_settings
@@ -20,16 +22,33 @@ settings = get_settings()
 
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(settings.log_level, settings.log_json)
+    integrations = build_integrations(settings)
+    if settings.triage_agent == "gemini":
+        key, model = settings.gemini_api_key, settings.gemini_model
+        if key is None or not key.get_secret_value().strip() or model is None or not model.strip():
+            raise RuntimeError("Gemini triage requires TRIAGE_GEMINI_API_KEY and TRIAGE_GEMINI_MODEL")
+        provider = GeminiProvider(api_key=key.get_secret_value(), model=model.strip())
+        try:
+            integrations = build_integrations(settings, agent=StructuredTriageAgent(provider))
+        except Exception:
+            await provider.aclose()
+            raise
+        ctx["gemini_provider"] = provider
     engine = create_engine(settings)
     ctx["engine"] = engine
     ctx["workflow"] = Workflow(
-        create_sessionmaker(engine), ArqJobQueue(ctx["redis"]), RedisGuards(ctx["redis"]), build_integrations(settings), settings
+        create_sessionmaker(engine), ArqJobQueue(ctx["redis"]), RedisGuards(ctx["redis"]), integrations, settings
     )
     log.info("worker_started", remediation_mode=settings.remediation_mode)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
-    await ctx["engine"].dispose()
+    provider: GeminiProvider | None = ctx.get("gemini_provider")
+    try:
+        if provider is not None:
+            await provider.aclose()
+    finally:
+        await ctx["engine"].dispose()
 
 
 def _wf(ctx: dict[str, Any]) -> Workflow:
