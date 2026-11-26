@@ -33,6 +33,13 @@ required. See `docs/architecture.md` for the system design and `docs/adr/` for e
   `feat(ingest): add alertmanager webhook`, `fix(worker): retry on redis timeout`, `docs(adr): 0007 agent layer`.
 - Rebase on `main` before merge; squash-merge PRs.
 
+## Pull request skills
+
+- Use [agent-triage-pr](.agents/skills/agent-triage-pr/SKILL.md) when preparing or updating a PR. It covers low-level
+  design, impacted areas, rollout, evidence, and GitHub assignment.
+- Use [agent-triage-review](.agents/skills/agent-triage-review/SKILL.md) for PR review and author self-review.
+- Use the [GitHub template](.github/pull_request_template.md) as the PR body format.
+
 ## Repository layout (target, from Phase 1)
 
 ```
