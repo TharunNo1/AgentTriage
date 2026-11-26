@@ -105,3 +105,8 @@ Stop port forwarding with Ctrl+C and remove the disposable namespace when finish
 ```bash
 kubectl --context minikube delete namespace triage-dev
 ```
+
+## Dashboard
+
+The operator dashboard uses a separate release and image. See the [frontend deployment guide](../../frontend/README.md)
+for the API flag, service routing, and upgrade command.

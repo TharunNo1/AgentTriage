@@ -229,6 +229,7 @@ class Workflow:
         actor: str,
         reason: RejectionReason | None = None,
         note: str | None = None,
+        approval_id: uuid.UUID | None = None,
     ) -> Incident:
         if not approve and reason is None:
             raise DomainError("A rejection reason is required")
@@ -243,6 +244,8 @@ class Workflow:
             if not pending:
                 raise ConflictError("Incident has no pending approval")
             approval = pending[0]
+            if approval_id is not None and (approval.id != approval_id or approval.expires_at <= datetime.now(UTC)):
+                raise ConflictError("The reviewed approval is no longer pending")
             approval.decided_by, approval.note, approval.decided_at = actor, note, datetime.now(UTC)
             events = EventRepository(session)
             if approve:

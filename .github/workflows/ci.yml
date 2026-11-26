@@ -63,3 +63,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build -t agent-triage:ci .
+      - run: node --check frontend/assets/dashboard.js
+      - run: docker build -t agent-triage-dashboard:ci frontend

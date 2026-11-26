@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.deps import Container
-from app.api.routers import alerts, health, incidents
+from app.api.routers import alerts, dashboard, health, incidents
 from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
 from app.core.settings import Settings, get_settings
@@ -65,6 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         structlog.contextvars.bind_contextvars(request_id=request_id, path=request.url.path)
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
+        if request.url.path.startswith(("/v1/incidents", "/v1/dashboard/")):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.exception_handler(DomainError)
@@ -78,4 +80,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(alerts.router)
     app.include_router(incidents.router)
+    if settings.dashboard_enabled:
+        app.include_router(dashboard.router)
     return app

@@ -1,0 +1,46 @@
+:root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; color: #e4eef5; background: #111b25; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem max(5vw, 1rem); border-bottom: 1px solid #3e5367; background: #182634; }
+.top strong { color: #79e0c8; }
+main { width: min(1200px, 92%); margin: 2rem auto; }
+h1 { font-size: clamp(1.8rem, 4vw, 3rem); margin-bottom: 0; }
+h2 { margin-top: 0; }
+h3, h4 { margin-bottom: .25rem; }
+p { overflow-wrap: anywhere; }
+#message { min-height: 1.5em; color: #ffda95; }
+.panel, .health > div { border: 1px solid #3e5367; border-radius: .75rem; background: #182634; padding: 1rem; min-width: 0; }
+.health, .layout { display: grid; gap: 1rem; }
+.health { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1rem; }
+.layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
+dt, .hint { color: #b4c9d9; }
+dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+form { display: flex; gap: .65rem; flex-wrap: wrap; align-items: end; }
+form label { display: grid; gap: .2rem; min-width: 0; }
+input, select, button { font: inherit; border: 1px solid #607d95; padding: .5rem .65rem; border-radius: .4rem; max-width: 100%; }
+input, select { background: #101a24; color: inherit; }
+button { background: #79e0c8; color: #101a24; cursor: pointer; font-weight: 650; }
+button:disabled { cursor: wait; opacity: .65; }
+:focus-visible { outline: 2px solid #ffda95; outline-offset: 3px; }
+.incident-list { list-style: none; padding: 0; }
+.incident-list li { margin-bottom: .5rem; }
+.incident-list button { width: 100%; text-align: left; background: #213446; color: inherit; overflow-wrap: anywhere; }
+.incident-list button[aria-pressed="true"] { border-color: #79e0c8; }
+.hint { display: block; font-size: .84rem; }
+#selected form { margin-block: 1rem; }
+pre { padding: .65rem; background: #101a24; white-space: pre-wrap; overflow-wrap: anywhere; }
+#events { padding-inline-start: 1.6rem; }
+#events li { margin-block: .45rem; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .layout, .health { grid-template-columns: 1fr; } }
+
+.skip-link {
+  position: absolute;
+  inset: 1rem auto auto 1rem;
+  z-index: 1;
+  padding: .65rem;
+  background: #101a24;
+  color: #fff;
+  transform: translateY(calc(-100% - 2rem));
+}
+.skip-link:focus { transform: none; }

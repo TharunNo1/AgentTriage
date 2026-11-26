@@ -19,3 +19,5 @@ See [0001](0001-record-architecture-decisions.md) for why and how we record deci
 | [0013](0013-slack-webhook-notifications.md) | Send operator notifications through Slack incoming webhooks | Proposed |
 | [0014](0014-resend-email-notifications.md) | Deliver incident notifications through the Resend email API | Proposed |
 | [0015](0015-jira-cloud-ticketing.md) | Synchronize incident tickets to Jira Cloud | Proposed |
+| [0017](0017-dashboard-rbac.md) | Dashboard and incident role-based access | Proposed |
+| [0018](0018-standalone-dashboard.md) | Deploy the dashboard independently of FastAPI | Proposed |

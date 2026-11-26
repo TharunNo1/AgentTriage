@@ -107,6 +107,8 @@ All of the above must pass before opening a PR.
 - Versioned routes under `/v1`. Breaking changes require a new version.
 - Mutating endpoints accept an `Idempotency-Key` header or derive one from the payload.
 - Webhooks are authenticated (HMAC signature or API key). Unauthenticated endpoints: `/healthz`, `/readyz`, `/metrics` only.
+- The standalone frontend serves a public sign-in shell. FastAPI requires authenticated incident permissions
+  for dashboard data and actions. See [ADR 0018](docs/adr/0018-standalone-dashboard.md).
 - Return RFC 9457 problem-details JSON for errors.
 
 ### Database

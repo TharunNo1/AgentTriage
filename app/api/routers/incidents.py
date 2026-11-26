@@ -1,20 +1,21 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Query
 
-from app.api.auth import Principal, authenticate, require_scope
-from app.api.deps import Container, ContainerDep
-from app.api.schemas import ApprovalDecision, EventOut, IncidentOut, IncidentPage, OperatorTransition
+from app.api.auth import Principal, authenticate, require_permission
+from app.api.deps import ContainerDep
+from app.api.schemas import ApprovalDecision, EventOut, IncidentOut, IncidentPage, OperatorTransition, PendingProposal
 from app.core.errors import NotFoundError
-from app.db.repositories import EventRepository, IncidentRepository
+from app.db.repositories import ApprovalRepository, EventRepository, IncidentRepository
 from app.domain.models import IncidentStatus
 
 router = APIRouter(prefix="/v1/incidents", tags=["incidents"])
 
 
-async def _operator(request: Request, container: Container, authorization: str | None) -> Principal:
-    principal = await authenticate(
+async def incident_principal(container: ContainerDep, authorization: Annotated[str | None, Header()] = None) -> Principal:
+    return await authenticate(
         authorization=authorization,
         hmac_client=None,
         hmac_timestamp=None,
@@ -23,31 +24,29 @@ async def _operator(request: Request, container: Container, authorization: str |
         settings=container.settings,
         sessionmaker=container.sessionmaker,
     )
-    require_scope(principal, "operator")
-    return principal
+
+
+IncidentPrincipal = Annotated[Principal, Depends(incident_principal)]
 
 
 @router.get("")
 async def list_incidents(
-    request: Request,
     container: ContainerDep,
-    authorization: Annotated[str | None, Header()] = None,
+    principal: IncidentPrincipal,
     status: IncidentStatus | None = None,
     service: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     cursor: str | None = None,
 ) -> IncidentPage:
-    await _operator(request, container, authorization)
+    require_permission(principal, "read")
     async with container.sessionmaker() as session:
         rows, next_cursor = await IncidentRepository(session).page(status=status, service=service, limit=limit, cursor=cursor)
     return IncidentPage(items=[IncidentOut.model_validate(r) for r in rows], next_cursor=next_cursor)
 
 
 @router.get("/{incident_id}")
-async def get_incident(
-    incident_id: uuid.UUID, request: Request, container: ContainerDep, authorization: Annotated[str | None, Header()] = None
-) -> IncidentOut:
-    await _operator(request, container, authorization)
+async def get_incident(incident_id: uuid.UUID, container: ContainerDep, principal: IncidentPrincipal) -> IncidentOut:
+    require_permission(principal, "read")
     async with container.sessionmaker() as session:
         incident = await IncidentRepository(session).get(incident_id)
     if incident is None:
@@ -58,29 +57,49 @@ async def get_incident(
 @router.get("/{incident_id}/events")
 async def list_events(
     incident_id: uuid.UUID,
-    request: Request,
     container: ContainerDep,
-    authorization: Annotated[str | None, Header()] = None,
+    principal: IncidentPrincipal,
     after_id: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> list[EventOut]:
-    await _operator(request, container, authorization)
+    require_permission(principal, "read")
     async with container.sessionmaker() as session:
         events = await EventRepository(session).for_incident(incident_id, after_id=after_id, limit=limit)
     return [EventOut.model_validate(e) for e in events]
+
+
+@router.get("/{incident_id}/approval")
+async def get_pending_proposal(
+    incident_id: uuid.UUID, container: ContainerDep, principal: IncidentPrincipal
+) -> PendingProposal | None:
+    require_permission(principal, "read")
+    async with container.sessionmaker() as session:
+        proposal = await ApprovalRepository(session).pending_proposal(incident_id)
+    if proposal is None:
+        return None
+    approval, action = proposal
+    if approval.expires_at <= datetime.now(UTC):
+        return None
+    return PendingProposal(
+        approval_id=approval.id, expires_at=approval.expires_at, action_type=action.action_type, params=action.params
+    )
 
 
 @router.post("/{incident_id}/approval")
 async def decide_approval(
     incident_id: uuid.UUID,
     body: ApprovalDecision,
-    request: Request,
     container: ContainerDep,
-    authorization: Annotated[str | None, Header()] = None,
+    principal: IncidentPrincipal,
 ) -> IncidentOut:
-    principal = await _operator(request, container, authorization)
+    require_permission(principal, "approval")
     incident = await container.workflow.decide_approval(
-        incident_id, approve=body.decision == "approve", actor=principal.name, reason=body.reason, note=body.note
+        incident_id,
+        approve=body.decision == "approve",
+        actor=principal.name,
+        reason=body.reason,
+        note=body.note,
+        approval_id=body.approval_id,
     )
     return IncidentOut.model_validate(incident)
 
@@ -89,10 +108,9 @@ async def decide_approval(
 async def operator_transition(
     incident_id: uuid.UUID,
     body: OperatorTransition,
-    request: Request,
     container: ContainerDep,
-    authorization: Annotated[str | None, Header()] = None,
+    principal: IncidentPrincipal,
 ) -> IncidentOut:
-    principal = await _operator(request, container, authorization)
+    require_permission(principal, "transition")
     incident = await container.workflow.operator_transition(incident_id, body.status, actor=principal.name, note=body.note)
     return IncidentOut.model_validate(incident)

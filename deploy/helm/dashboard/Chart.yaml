@@ -1,0 +1,5 @@
+apiVersion: v2
+name: agent-triage-dashboard
+description: Standalone web dashboard for Agent Triage
+type: application
+version: 0.1.0
