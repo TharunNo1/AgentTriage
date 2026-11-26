@@ -1,0 +1,7 @@
+environment: staging
+api:
+  replicas: 2
+  autoscaling:
+    enabled: true
+worker:
+  replicas: 2

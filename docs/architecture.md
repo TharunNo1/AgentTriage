@@ -84,6 +84,9 @@ Every transition appends to `incident_events`, which is the audit log and the so
 3. **Remediation + ops** — policy engine, Kubernetes executor, verification, OpenTelemetry, metrics, Helm chart.
 4. **Dashboard** — React operator UI.
 
+The first Phase 3 slice packages the API, worker, and migrations for Kubernetes. See the
+[Helm deployment guide](../deploy/helm/README.md) for environment profiles and cluster prerequisites.
+
 The first Phase 2 slice offers opt-in, single-call Gemini analysis of bounded alert evidence. It records the result
 and escalates for operator review. See [ADR 0012](adr/0012-gemini-analysis-rollout.md) for the rollout scope.
 

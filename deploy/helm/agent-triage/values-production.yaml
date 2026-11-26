@@ -1,0 +1,10 @@
+environment: production
+api:
+  replicas: 3
+  autoscaling:
+    enabled: true
+    maxReplicas: 10
+worker:
+  replicas: 3
+  autoscaling:
+    maxReplicas: 10
