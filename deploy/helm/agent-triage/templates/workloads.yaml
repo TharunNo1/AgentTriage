@@ -1,0 +1,103 @@
+{{- range $component := list "api" "worker" }}
+{{- $settings := index $.Values $component }}
+{{- $context := dict "root" $ "component" $component }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "triage.name" $ }}-{{ $component }}
+  labels:
+    {{- include "triage.selector" $context | nindent 4 }}
+spec:
+  {{- if not $settings.autoscaling.enabled }}
+  replicas: {{ $settings.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "triage.selector" $context | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "triage.selector" $context | nindent 8 }}
+    spec:
+      {{- include "triage.podSecurity" $ | nindent 6 }}
+      containers:
+        - name: {{ $component }}
+          {{- include "triage.container" $ | nindent 10 }}
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+          {{- if eq $component "api" }}
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            timeoutSeconds: 3
+          {{- else }}
+          command: ["arq", "app.workers.main.WorkerSettings"]
+          {{- end }}
+{{- if gt (int $settings.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "triage.name" $ }}-{{ $component }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "triage.selector" $context | nindent 6 }}
+{{- end }}
+{{- if $settings.autoscaling.enabled }}
+{{- if lt (int $settings.autoscaling.maxReplicas) (int $settings.replicas) }}
+{{- fail (printf "%s.autoscaling.maxReplicas must be at least %s.replicas" $component $component) }}
+{{- end }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "triage.name" $ }}-{{ $component }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "triage.name" $ }}-{{ $component }}
+  minReplicas: {{ $settings.replicas }}
+  maxReplicas: {{ $settings.autoscaling.maxReplicas }}
+  metrics:
+    {{- if eq $component "api" }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $settings.autoscaling.targetCPU }}
+    {{- else }}
+    - type: External
+      external:
+        metric:
+          name: {{ required "worker.autoscaling.metricName is required when enabled" $settings.autoscaling.metricName | quote }}
+        target:
+          type: AverageValue
+          averageValue: {{ $settings.autoscaling.targetQueueDepth | quote }}
+    {{- end }}
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "triage.name" . }}-api
+spec:
+  selector:
+    {{- include "triage.selector" (dict "root" . "component" "api") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
