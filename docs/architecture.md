@@ -92,3 +92,6 @@ authenticated incident API for approvals. See [ADR 0013](adr/0013-slack-webhook-
 
 The Resend email notifier uses the queued job ID to deduplicate delivery retries and sends the incident ID and event
 label to a configured address. See [ADR 0014](adr/0014-resend-email-notifications.md).
+
+The Jira Cloud adapter reserves one create attempt per incident and reconciles uncertain results by incident label.
+See [ADR 0015](adr/0015-jira-cloud-ticketing.md).

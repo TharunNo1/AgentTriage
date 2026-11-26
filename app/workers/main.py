@@ -18,6 +18,7 @@ from app.integrations.notify import NotificationDeliveryError
 from app.integrations.notify.resend import EmailDeliveryError, ResendNotifier
 from app.integrations.notify.slack import SlackDeliveryError, SlackNotifier
 from app.integrations.registry import build_integrations
+from app.integrations.ticketing.jira import JiraSyncError, JiraTicketing
 from app.services.guards import RedisGuards
 from app.services.queue import ArqJobQueue
 from app.services.workflow import Workflow
@@ -55,7 +56,18 @@ async def startup(ctx: dict[str, Any]) -> None:
             client = await resources.enter_async_context(httpx.AsyncClient())
             notifier = ResendNotifier(client, api_key=email_key.get_secret_value().strip(), sender=sender, recipient=recipient)
 
-        integrations = build_integrations(settings, agent=agent, notifier=notifier)
+        ticketing = None
+        if settings.ticketing == "jira":
+            site, project = settings.jira_site, settings.jira_project
+            email, issue_type, token = settings.jira_email, settings.jira_issue_type_id, settings.jira_api_token
+            if not site or not project or not email or not issue_type or token is None or not token.get_secret_value().strip():
+                raise RuntimeError("Jira ticketing requires all TRIAGE_JIRA_* settings")
+            jira_client = await resources.enter_async_context(httpx.AsyncClient())
+            ticketing = JiraTicketing(
+                jira_client, site=site, project=project, issue_type_id=issue_type, email=email, token=token.get_secret_value()
+            )
+
+        integrations = build_integrations(settings, agent=agent, notifier=notifier, ticketing=ticketing)
         engine = create_engine(settings)
         resources.push_async_callback(engine.dispose)
         ctx["engine"] = engine
@@ -111,8 +123,16 @@ async def expire_approval(ctx: dict[str, Any], approval_id: str) -> None:
 async def sync_ticket(ctx: dict[str, Any], incident_id: str) -> None:
     try:
         await _wf(ctx).sync_ticket(uuid.UUID(incident_id))
+    except JiraSyncError as exc:
+        retry = int(ctx["job_try"]) < settings.job_max_tries
+        JOBS.labels(job="sync_ticket", outcome="retry" if retry else "failed").inc()
+        log.warning("jira_ticket_sync_failed", incident_id=incident_id, retry=retry, error=str(exc))
+        if retry:
+            raise Retry(defer=_backoff(ctx)) from exc
+        raise
     except Exception as exc:
         raise Retry(defer=_backoff(ctx)) from exc
+    JOBS.labels(job="sync_ticket", outcome="ok").inc()
 
 
 async def send_notification(ctx: dict[str, Any], incident_id: str, kind: str) -> None:
