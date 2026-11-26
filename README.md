@@ -4,7 +4,7 @@ Autonomous SRE incident triage. Agent Triage receives alerts, deduplicates them 
 
 See [docs/architecture.md](docs/architecture.md) for the design, [docs/adr/](docs/adr/README.md) for architecture decisions, and [AGENTS.md](AGENTS.md) for contribution and coding standards.
 
-> **Status: Phase 2 rollout.** Gemini analysis is opt-in. The default triage agent, ticketing, and notifications use deterministic adapters. Remediation is dry-run only. Slack and email notifications are opt-in. Jira, log and Kubernetes adapters are planned.
+> **Status: Phase 2 rollout.** Gemini analysis is opt-in. The default triage agent, ticketing, and notifications use deterministic adapters. Remediation is dry-run only. Slack and email notifications are opt-in. Jira Cloud ticketing is opt-in. Log and Kubernetes adapters are planned.
 
 ## How it works
 
@@ -55,6 +55,35 @@ Set `TRIAGE_NOTIFIER=resend` in the worker environment. Configure the secret `TR
 a verified sender in `TRIAGE_RESEND_FROM_EMAIL`, and one recipient in `TRIAGE_RESEND_TO_EMAIL`.
 Emails contain an incident ID and event label. The incident API handles review and approvals.
 See [ADR 0014](docs/adr/0014-resend-email-notifications.md) for delivery and retry behavior.
+
+## Jira Cloud ticketing
+
+Select `TRIAGE_TICKETING=jira` and configure the tenant URL, project key, issue type ID, and service account
+credentials using the Jira variables in `.env.example`. Use a dedicated Jira project and approve transfer of
+triage summaries before enabling the worker. Operators can recover a reserved ticket by attaching the label
+`agent-triage-<incident UUID>` to a single issue in the configured project. Review
+[ADR 0015](docs/adr/0015-jira-cloud-ticketing.md) for retry and rollback behavior. If the original job exhausted
+its retries, a deployment administrator can enqueue a new sync job from a Jira-enabled worker:
+
+```bash
+docker compose -f deploy/docker-compose.yml exec -T worker python - "$INCIDENT_ID" <<'PY'
+import asyncio
+import sys
+from uuid import UUID
+from arq import create_pool
+from arq.connections import RedisSettings
+from app.core.settings import get_settings
+
+async def main():
+    redis = await create_pool(RedisSettings.from_dsn(str(get_settings().redis_url)))
+    try:
+        await redis.enqueue_job("sync_ticket", str(UUID(sys.argv[1])))
+    finally:
+        await redis.aclose()
+
+asyncio.run(main())
+PY
+```
 
 ## API
 

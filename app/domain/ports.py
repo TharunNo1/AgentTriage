@@ -55,7 +55,7 @@ class TriageAgent(Protocol):
 
 
 class Ticketing(Protocol):
-    async def sync(self, incident: IncidentSnapshot, comment: str) -> TicketRef: ...
+    async def sync(self, incident: IncidentSnapshot, comment: str, *, allow_create: bool = True) -> TicketRef: ...
 
 
 class Notifier(Protocol):

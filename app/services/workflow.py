@@ -1,5 +1,6 @@
 import time
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -310,14 +311,27 @@ class Workflow:
         return len(ids)
 
     async def sync_ticket(self, incident_id: uuid.UUID) -> None:
-        async with self._sessionmaker() as session:
-            incident = await IncidentRepository(session).get(incident_id)
+        jira_enabled = self._settings.ticketing == "jira"
+        allow_create = True
+        async with transaction(self._sessionmaker) as session:
+            incident = await IncidentRepository(session).get(incident_id, for_update=jira_enabled)
             if incident is None:
                 return
             snap = snapshot(incident)
-        ticket = await self._integrations.ticketing.sync(snap, comment=snap.rca_summary or snap.title)
+            if jira_enabled:
+                if snap.ticket_url and snap.ticket_url.startswith("https://tickets.invalid/"):
+                    snap = replace(snap, ticket_id=None, ticket_url=None)
+                if snap.ticket_id is None:
+                    events = EventRepository(session)
+                    # Commit the reservation before Jira I/O so a crashed attempt can only be reconciled.
+                    allow_create = not await events.has_type(incident_id, "jira_create_reserved")
+                    if allow_create:
+                        events.add(incident, "jira_create_reserved", SYSTEM_ACTOR)
+        ticket = await self._integrations.ticketing.sync(snap, comment=snap.rca_summary or snap.title, allow_create=allow_create)
         async with transaction(self._sessionmaker) as session:
             incident = await self._get_for_update(session, incident_id)
+            if not jira_enabled and incident.ticket_id != snap.ticket_id:
+                return
             incident.ticket_id, incident.ticket_url = ticket.ticket_id, ticket.url
             EventRepository(session).add(
                 incident, "ticket_synced", SYSTEM_ACTOR, data={"ticket_id": ticket.ticket_id, "created": ticket.created}

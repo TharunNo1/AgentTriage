@@ -95,6 +95,10 @@ class EventRepository:
             )
         )
 
+    async def has_type(self, incident_id: uuid.UUID, type_: str) -> bool:
+        stmt = select(IncidentEvent.id).where(IncidentEvent.incident_id == incident_id, IncidentEvent.type == type_).limit(1)
+        return (await self.session.scalar(stmt)) is not None
+
     async def for_incident(self, incident_id: uuid.UUID, *, after_id: int, limit: int) -> list[IncidentEvent]:
         stmt = (
             select(IncidentEvent)

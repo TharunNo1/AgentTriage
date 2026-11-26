@@ -133,13 +133,15 @@ class MockTriageAgent:
 
 
 class MockTicketing:
-    async def sync(self, incident: IncidentSnapshot, comment: str) -> TicketRef:
+    async def sync(self, incident: IncidentSnapshot, comment: str, *, allow_create: bool = True) -> TicketRef:
         ticket_id = (
             incident.ticket_id or f"MOCK-{int(hashlib.sha256(str(incident.id).encode()).hexdigest()[:6], 16) % 9000 + 1000}"
         )
         log.info("mock_ticket_synced", ticket_id=ticket_id, incident_id=str(incident.id), comment=comment)
         return TicketRef(
-            ticket_id=ticket_id, url=f"https://tickets.invalid/browse/{ticket_id}", created=incident.ticket_id is None
+            ticket_id=ticket_id,
+            url=incident.ticket_url or f"https://tickets.invalid/browse/{ticket_id}",
+            created=incident.ticket_id is None,
         )
 
 
