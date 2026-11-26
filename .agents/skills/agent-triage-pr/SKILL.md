@@ -19,3 +19,5 @@ description: Prepare, open, or update an Agent Triage pull request, including lo
 5. When authorized to open or update the PR, use the template. Use the requested assignee or preserve the existing
    assignees. If none are set, assign the human PR author when assignable, then verify the GitHub assignee field.
    If no intended human is inferable, report that assignment needs an owner. Assignment does not request review.
+6. Before handing off, follow the end-of-task cleanup in AGENTS.md. Verify that pushed commits and the PR are
+   discoverable before removing the temporary checkout. Report clean-up exceptions in the handoff.

@@ -40,6 +40,13 @@ required. See `docs/architecture.md` for the system design and `docs/adr/` for e
 - Use [agent-triage-review](.agents/skills/agent-triage-review/SKILL.md) for PR review and author self-review.
 - Use the [GitHub template](.github/pull_request_template.md) as the PR body format.
 
+## End-of-task cleanup
+
+Before reporting completion, stop task-started services and processes and remove disposable files, checkouts, and
+tooling created for the task. Verify that deliverables and commits are preserved first. Preserve pre-existing
+artifacts, shared resources, and any checkout with uncommitted or unpushed work. Report anything intentionally
+retained and why.
+
 ## Repository layout (target, from Phase 1)
 
 ```

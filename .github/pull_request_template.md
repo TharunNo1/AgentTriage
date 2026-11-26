@@ -30,3 +30,4 @@
 - [ ] No secrets in the diff and safety controls verified where affected
 - [ ] Required CI checks passed for the current head
 - [ ] GitHub assignee verified
+- [ ] Temporary resources cleaned up and any retained artifacts documented
