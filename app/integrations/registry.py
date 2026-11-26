@@ -13,12 +13,12 @@ class Integrations:
     executor: RemediationExecutor
 
 
-def build_integrations(settings: Settings, *, agent: TriageAgent | None = None) -> Integrations:
+def build_integrations(settings: Settings, *, agent: TriageAgent | None = None, notifier: Notifier | None = None) -> Integrations:
     if settings.remediation_mode == "enabled":
         raise RuntimeError("TRIAGE_REMEDIATION_MODE=enabled requires a real remediation executor, which is not available yet")
     return Integrations(
         agent=agent if agent is not None else MockTriageAgent(),
         ticketing=MockTicketing(),
-        notifier=LoggingNotifier(),
+        notifier=notifier if notifier is not None else LoggingNotifier(),
         executor=DryRunExecutor(),
     )

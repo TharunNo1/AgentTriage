@@ -16,3 +16,4 @@ See [0001](0001-record-architecture-decisions.md) for why and how we record deci
 | [0010](0010-packaging-and-deployment.md) | Packaging and deployment | Accepted |
 | [0011](0011-dashboard.md) | Operator dashboard | Accepted |
 | [0012](0012-gemini-analysis-rollout.md) | Roll out Gemini incident analysis in the worker | Proposed |
+| [0013](0013-slack-webhook-notifications.md) | Send operator notifications through Slack incoming webhooks | Proposed |

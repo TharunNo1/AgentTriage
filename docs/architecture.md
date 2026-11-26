@@ -86,3 +86,6 @@ Every transition appends to `incident_events`, which is the audit log and the so
 
 The first Phase 2 slice offers opt-in, single-call Gemini analysis of bounded alert evidence. It records the result
 and escalates for operator review. See [ADR 0012](adr/0012-gemini-analysis-rollout.md) for the rollout scope.
+
+The Slack notifier posts incident IDs, severity, and lifecycle event labels to a configured channel. Operators use the
+authenticated incident API for approvals. See [ADR 0013](adr/0013-slack-webhook-notifications.md).
