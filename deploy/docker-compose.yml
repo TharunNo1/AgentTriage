@@ -54,6 +54,18 @@ services:
       interval: 5s
       retries: 20
 
+  dashboard:
+    profiles: [dashboard]
+    build:
+      context: ../frontend
+    environment:
+      TRIAGE_API_UPSTREAM: api:8000
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+
   worker:
     <<: *app
     command: ["arq", "app.workers.main.WorkerSettings"]

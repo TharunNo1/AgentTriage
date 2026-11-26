@@ -1,0 +1,7 @@
+image: ""
+imagePullSecrets: []
+apiUpstream: ""
+replicas: 1
+resources:
+  requests: {cpu: 25m, memory: 32Mi}
+  limits: {memory: 128Mi}

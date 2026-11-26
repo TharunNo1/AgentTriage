@@ -107,11 +107,19 @@ async def test_reject_wrong_action_reproposes_once_then_manual(client: AsyncClie
     incident_id = await _open(client, DB_POOL)
     await worker.drain()
     reject = {"decision": "reject", "reason": "wrong_action", "note": "scale the pgbouncer pool instead"}
-    first = await client.post(f"/v1/incidents/{incident_id}/approval", json=reject, headers=OPERATOR)
+    path = f"/v1/incidents/{incident_id}/approval"
+    original = (await client.get(path, headers=OPERATOR)).json()
+    assert original["action_type"] and isinstance(original["params"], dict)
+    first = await client.post(path, json={**reject, "approval_id": original["approval_id"]}, headers=OPERATOR)
     assert first.json()["status"] == "TRIAGING"
     await worker.drain()
     assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"
-    second = await client.post(f"/v1/incidents/{incident_id}/approval", json=reject, headers=OPERATOR)
+    replacement = (await client.get(path, headers=OPERATOR)).json()
+    assert replacement["approval_id"] != original["approval_id"]
+    stale = await client.post(path, json={"decision": "approve", "approval_id": original["approval_id"]}, headers=OPERATOR)
+    assert stale.status_code == 409
+    assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"
+    second = await client.post(path, json={**reject, "approval_id": replacement["approval_id"]}, headers=OPERATOR)
     assert second.json()["status"] == "MANUAL"
 
 

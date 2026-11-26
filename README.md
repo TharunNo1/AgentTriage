@@ -124,3 +124,25 @@ Configuration is environment-driven (`TRIAGE_*`); see [.env.example](.env.exampl
 ## License
 
 See [LICENSE](LICENSE).
+
+## Incident operations dashboard
+
+Set `TRIAGE_DASHBOARD_ENABLED=true` in `.env`, then run
+`docker compose -f deploy/docker-compose.yml --profile dashboard up --build`.
+Open `http://localhost:8080/dashboard`. The frontend runs in its own container and proxies dashboard API requests.
+See the [frontend deployment guide](frontend/README.md) for standalone image builds and Helm deployment.
+
+Issue each person their own revocable key with `uv run agent-triage create-api-key --name <name> --scopes <role>`.
+Sign in by entering the key. The page keeps it in memory until you sign out or navigate away.
+
+| Role | Read incidents, timeline, and proposals | Change incident status | Approve or reject proposals | Ingest alerts |
+|------|-----------------------------------------------------|------------------------|-----------------------------|---------------|
+| `viewer` | Yes | | | |
+| `responder` | Yes | Yes | | |
+| `approver` | Yes | | Yes | |
+| `operator` | Yes | Yes | Yes | |
+| `ingest` | | | | Yes |
+
+Roles can be combined. An incident status change can close a pending approval as part of the existing incident
+lifecycle. The dashboard's Refresh button reloads incidents, the selected timeline, and Postgres/Redis readiness.
+Use `uv run agent-triage revoke-api-key --name <name>` to revoke a credential.

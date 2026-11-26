@@ -130,6 +130,17 @@ class ApprovalRepository:
             stmt = stmt.with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def pending_proposal(self, incident_id: uuid.UUID) -> tuple[Approval, RemediationAction] | None:
+        stmt = (
+            select(Approval, RemediationAction)
+            .join(RemediationAction, RemediationAction.id == Approval.action_id)
+            .where(Approval.incident_id == incident_id, Approval.status == ApprovalStatus.PENDING)
+            .order_by(Approval.expires_at.desc(), Approval.id)
+            .limit(1)
+        )
+        row = (await self.session.execute(stmt)).one_or_none()
+        return (row[0], row[1]) if row is not None else None
+
     async def pending_for_incident(self, incident_id: uuid.UUID) -> list[Approval]:
         stmt = (
             select(Approval)

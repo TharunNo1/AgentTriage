@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Triage | Incident operations</title>
+  <link rel="stylesheet" href="/dashboard/assets/dashboard.css">
+  <script src="/dashboard/assets/dashboard.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="top">
+    <strong>Agent Triage</strong>
+    <div><span id="identity"></span> <button id="sign-out" type="button" hidden>Sign out</button></div>
+  </header>
+  <main id="main" tabindex="-1">
+    <h1>Incident operations</h1>
+    <p id="message" role="status" aria-live="polite"></p>
+    <form id="sign-in" class="panel" autocomplete="off">
+      <label for="key">API key</label>
+      <input id="key" type="password" required spellcheck="false" autocomplete="off">
+      <button>Sign in</button>
+    </form>
+    <section id="workspace" hidden>
+      <dl class="health" aria-label="Application status">
+        <div><dt>Database</dt><dd id="database">Unknown</dd></div>
+        <div><dt>Redis</dt><dd id="redis">Unknown</dd></div>
+        <div><dt>Remediation mode</dt><dd id="mode"></dd></div>
+      </dl>
+      <div class="layout">
+        <section class="panel">
+          <h2>Incidents</h2>
+          <form id="filters">
+            <label>Status <select id="filter-status"><option value="">All statuses</option></select></label>
+            <label>Service <input id="filter-service" placeholder="Exact service name"></label>
+            <button>Refresh</button>
+          </form>
+          <ul id="incidents" class="incident-list" aria-label="Incidents"></ul>
+          <button id="more-incidents" type="button" hidden>Load more incidents</button>
+        </section>
+        <section class="panel" id="detail">
+          <h2>Incident detail</h2>
+          <p id="select-incident">Select an incident to see its details.</p>
+          <div id="selected" hidden>
+            <h3 id="title"></h3>
+            <p id="metadata"></p>
+            <p id="summary"></p>
+            <p id="ticket"></p>
+            <section id="proposal" hidden>
+              <h4>Pending approval</h4>
+              <p id="approval-expiry"></p>
+              <pre id="action"></pre>
+              <form id="approval" hidden>
+                <label>Decision <select id="decision" required><option value="">Select decision</option><option value="approve">Approve</option><option value="reject">Reject</option></select></label>
+                <label id="reason-field" hidden>Reason <select id="reason">
+                  <option value="">Select reason</option>
+                  <option value="false_positive">False positive</option>
+                  <option value="handle_manually">Handle manually</option>
+                  <option value="wrong_action">Wrong action</option>
+                </select></label>
+                <label>Note <input id="approval-note" maxlength="2000"></label>
+                <button>Submit decision</button>
+              </form>
+            </section>
+            <form id="transition" hidden>
+              <label>Move to <select id="target" required>
+                <option value="">Select status</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="SUPPRESSED">Suppressed</option>
+                <option value="MANUAL">Manual</option>
+              </select></label>
+              <label>Note <input id="transition-note" maxlength="2000"></label>
+              <button>Change status</button>
+            </form>
+            <h4>Timeline</h4>
+            <ol id="events"></ol>
+            <button id="more-events" type="button" hidden>Load more events</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

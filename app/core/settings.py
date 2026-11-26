@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     webhook_hmac_secrets: dict[str, SecretStr] = Field(default_factory=dict)
     hmac_max_skew_seconds: int = 300
 
+    dashboard_enabled: bool = False
+
     remediation_mode: RemediationMode = "dry_run"
     approval_ttl_seconds: int = 3_600
     verify_delay_seconds: int = 120

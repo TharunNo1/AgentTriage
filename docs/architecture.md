@@ -82,7 +82,9 @@ Every transition appends to `incident_events`, which is the audit log and the so
    state machine, mocked integration ports, docker-compose, CI.
 2. **Agent + integrations** — `LLMProvider` (Gemini), prompts, evals, real Jira/Slack/email/log adapters, approval flow.
 3. **Remediation + ops** — policy engine, Kubernetes executor, verification, OpenTelemetry, metrics, Helm chart.
-4. **Dashboard** — React operator UI.
+4. **Dashboard** — Opt-in operator UI for incidents, approval decisions, and API dependency readiness.
+   The independently deployed frontend proxies dashboard requests to the API on the same browser origin.
+   See [ADR 0018](adr/0018-standalone-dashboard.md) for deployment and [ADR 0017](adr/0017-dashboard-rbac.md) for access.
 
 The first Phase 3 slice packages the API, worker, and migrations for Kubernetes. See the
 [Helm deployment guide](../deploy/helm/README.md) for environment profiles and cluster prerequisites.

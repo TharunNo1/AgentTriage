@@ -3,22 +3,40 @@ import hmac
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import ForbiddenError, UnauthorizedError
+from app.core.logging import get_logger
 from app.core.settings import Settings
 from app.db.repositories import ApiClientRepository
 
-Scope = Literal["ingest", "operator"]
+Scope = Literal["ingest", "operator", "viewer", "responder", "approver"]
+VALID_SCOPES = frozenset(get_args(Scope))
+Permission = Literal["read", "transition", "approval"]
+INCIDENT_ROLES: dict[Permission, frozenset[str]] = {
+    "read": frozenset({"viewer", "responder", "approver", "operator"}),
+    "transition": frozenset({"responder", "operator"}),
+    "approval": frozenset({"approver", "operator"}),
+}
 API_KEY_PREFIX = "atk_"
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class Principal:
     name: str
     scopes: frozenset[str]
+
+    def can(self, permission: Permission) -> bool:
+        return bool(self.scopes & INCIDENT_ROLES[permission])
+
+
+def require_permission(principal: Principal, permission: Permission) -> None:
+    if not principal.can(permission):
+        log.info("incident_access_denied", client=principal.name, permission=permission)
+        raise ForbiddenError(f"API client lacks the incident '{permission}' permission")
 
 
 def generate_api_key() -> str:

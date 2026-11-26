@@ -1,13 +1,11 @@
 import argparse
 import asyncio
 
-from app.api.auth import generate_api_key, hash_api_key
+from app.api.auth import VALID_SCOPES, generate_api_key, hash_api_key
 from app.core.settings import get_settings
 from app.db.models import ApiClient
 from app.db.repositories import ApiClientRepository
 from app.db.session import create_engine, create_sessionmaker, transaction
-
-VALID_SCOPES = {"ingest", "operator"}
 
 
 async def _create(name: str, scopes: list[str]) -> None:
@@ -52,7 +50,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     create = sub.add_parser("create-api-key", help="Create an API client and print its key once")
     create.add_argument("--name", required=True)
-    create.add_argument("--scopes", default="ingest", help="Comma-separated: ingest,operator")
+    create.add_argument("--scopes", default="ingest", help=f"Comma-separated: {','.join(sorted(VALID_SCOPES))}")
     revoke = sub.add_parser("revoke-api-key")
     revoke.add_argument("--name", required=True)
     sub.add_parser("list-api-keys")

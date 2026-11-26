@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.models import IncidentStatus, RejectionReason, Severity
+from app.domain.models import ActionType, IncidentStatus, RejectionReason, Severity
 from app.services.ingest import IngestOutcome
 
 
@@ -58,6 +58,7 @@ class EventOut(BaseModel):
 
 class ApprovalDecision(BaseModel):
     decision: Literal["approve", "reject"]
+    approval_id: uuid.UUID | None = None
     reason: RejectionReason | None = None
     note: str | None = Field(default=None, max_length=2000)
 
@@ -65,3 +66,10 @@ class ApprovalDecision(BaseModel):
 class OperatorTransition(BaseModel):
     status: Literal[IncidentStatus.RESOLVED, IncidentStatus.SUPPRESSED, IncidentStatus.MANUAL]
     note: str | None = Field(default=None, max_length=2000)
+
+
+class PendingProposal(BaseModel):
+    approval_id: uuid.UUID
+    expires_at: datetime
+    action_type: ActionType
+    params: dict[str, Any]
