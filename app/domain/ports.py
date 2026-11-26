@@ -39,6 +39,7 @@ class Notification:
     body: str
     severity: Severity
     incident: IncidentSnapshot
+    delivery_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

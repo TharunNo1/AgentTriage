@@ -323,7 +323,7 @@ class Workflow:
                 incident, "ticket_synced", SYSTEM_ACTOR, data={"ticket_id": ticket.ticket_id, "created": ticket.created}
             )
 
-    async def send_notification(self, incident_id: uuid.UUID, kind: str) -> None:
+    async def send_notification(self, incident_id: uuid.UUID, kind: str, *, delivery_id: str | None = None) -> None:
         async with transaction(self._sessionmaker) as session:
             incident = await IncidentRepository(session).get(incident_id)
             if incident is None:
@@ -338,6 +338,7 @@ class Workflow:
                     body=incident.rca_summary or incident.title,
                     severity=Severity(incident.severity),
                     incident=snap,
+                    delivery_id=delivery_id,
                 )
             )
             EventRepository(session).add(incident, "notification_sent", SYSTEM_ACTOR, data={"kind": kind})
