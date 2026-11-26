@@ -4,7 +4,7 @@ Autonomous SRE incident triage. Agent Triage receives alerts, deduplicates them 
 
 See [docs/architecture.md](docs/architecture.md) for the design, [docs/adr/](docs/adr/README.md) for architecture decisions, and [AGENTS.md](AGENTS.md) for contribution and coding standards.
 
-> **Status: Phase 2 rollout.** Gemini analysis is opt-in. The default triage agent, ticketing, and notifications use deterministic adapters. Remediation is dry-run only. Slack notifications are opt-in. Jira, email, log and Kubernetes adapters are planned.
+> **Status: Phase 2 rollout.** Gemini analysis is opt-in. The default triage agent, ticketing, and notifications use deterministic adapters. Remediation is dry-run only. Slack and email notifications are opt-in. Jira, log and Kubernetes adapters are planned.
 
 ## How it works
 
@@ -48,6 +48,13 @@ Run `uv run pytest tests/evals` to replay structured triage responses offline.
 Set `TRIAGE_NOTIFIER=slack` and configure `TRIAGE_SLACK_WEBHOOK_URL` as a worker secret for the destination channel.
 Messages include the incident ID, severity, and event label. Use the operator API to review incidents and submit approvals.
 Delivery retries can produce duplicate messages after an ambiguous network failure.
+
+## Email notifications
+
+Set `TRIAGE_NOTIFIER=resend` in the worker environment. Configure the secret `TRIAGE_RESEND_API_KEY`,
+a verified sender in `TRIAGE_RESEND_FROM_EMAIL`, and one recipient in `TRIAGE_RESEND_TO_EMAIL`.
+Emails contain an incident ID and event label. The incident API handles review and approvals.
+See [ADR 0014](docs/adr/0014-resend-email-notifications.md) for delivery and retry behavior.
 
 ## API
 

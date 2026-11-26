@@ -1,25 +1,16 @@
 import asyncio
 import re
-from typing import Final
 
 import httpx
 
 from app.domain.ports import Notification
+from app.integrations.notify import NotificationDeliveryError, event_label
 
 _WEBHOOK = re.compile(r"https://hooks\.slack\.com/services/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+")
-_EVENT_LABELS: Final = {
-    "approval_requested": "Approval requested",
-    "escalated": "Escalated",
-    "resolved": "Resolved",
-    "manual": "Assigned for manual handling",
-    "suppressed": "Suppressed",
-}
 
 
-class SlackDeliveryError(RuntimeError):
-    def __init__(self, message: str, *, retryable: bool) -> None:
-        super().__init__(message)
-        self.retryable = retryable
+class SlackDeliveryError(NotificationDeliveryError):
+    pass
 
 
 class SlackNotifier:
@@ -30,7 +21,7 @@ class SlackNotifier:
         self._webhook = webhook
 
     async def notify(self, notification: Notification) -> None:
-        label = _EVENT_LABELS.get(notification.kind, "Incident updated")
+        label = event_label(notification.kind)
         incident = notification.incident
         message = f"Agent Triage | {label}\nIncident {incident.id}\nSeverity {notification.severity.value}"
         try:

@@ -37,8 +37,11 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_model: str | None = None
     ticketing: Literal["mock"] = "mock"
-    notifier: Literal["mock", "slack"] = "mock"
+    notifier: Literal["mock", "slack", "resend"] = "mock"
     slack_webhook_url: SecretStr | None = None
+    resend_api_key: SecretStr | None = None
+    resend_from_email: str | None = None
+    resend_to_email: str | None = None
 
     job_timeout_seconds: int = 300
     job_max_tries: int = 5

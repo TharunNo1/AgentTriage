@@ -89,3 +89,6 @@ and escalates for operator review. See [ADR 0012](adr/0012-gemini-analysis-rollo
 
 The Slack notifier posts incident IDs, severity, and lifecycle event labels to a configured channel. Operators use the
 authenticated incident API for approvals. See [ADR 0013](adr/0013-slack-webhook-notifications.md).
+
+The Resend email notifier uses the queued job ID to deduplicate delivery retries and sends the incident ID and event
+label to a configured address. See [ADR 0014](adr/0014-resend-email-notifications.md).
