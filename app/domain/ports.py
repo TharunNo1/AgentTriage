@@ -7,6 +7,8 @@ from app.domain.models import IncidentSnapshot, ProposedAction, Severity, Triage
 
 @dataclass(frozen=True, slots=True)
 class TriageContext:
+    """Recent signal evidence and optional feedback from the operator who rejected the last proposal."""
+
     incident_id: UUID
     service: str
     title: str
@@ -34,6 +36,8 @@ class TicketRef:
 
 @dataclass(frozen=True, slots=True)
 class Notification:
+    """One delivery request. Adapters can use delivery_id to deduplicate retries."""
+
     kind: str
     subject: str
     body: str
@@ -55,6 +59,8 @@ class TriageAgent(Protocol):
 
 
 class Ticketing(Protocol):
+    """Synchronize an incident with its ticket. Pass allow_create=False to recover a previous external create."""
+
     async def sync(self, incident: IncidentSnapshot, comment: str, *, allow_create: bool = True) -> TicketRef: ...
 
 
@@ -63,4 +69,6 @@ class Notifier(Protocol):
 
 
 class RemediationExecutor(Protocol):
+    """Apply a workflow-selected action, simulating its effects when dry_run is set."""
+
     async def execute(self, action: ProposedAction, *, dry_run: bool) -> ActionOutcome: ...

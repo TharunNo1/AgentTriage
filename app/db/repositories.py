@@ -30,12 +30,14 @@ class IncidentRepository:
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def get_open_by_fingerprint(self, fingerprint: str) -> Incident | None:
+        """Lock the matching open incident so concurrent ingests can update its occurrence count."""
         stmt = select(Incident).where(Incident.fingerprint == fingerprint, Incident.status.in_(OPEN_STATUSES)).with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def page(
         self, *, status: IncidentStatus | None, service: str | None, limit: int, cursor: str | None
     ) -> tuple[list[Incident], str | None]:
+        """Page newest first, using the incident ID to break ties between identical creation times."""
         stmt = select(Incident)
         if status is not None:
             stmt = stmt.where(Incident.status == status)
@@ -100,6 +102,7 @@ class EventRepository:
         return (await self.session.scalar(stmt)) is not None
 
     async def for_incident(self, incident_id: uuid.UUID, *, after_id: int, limit: int) -> list[IncidentEvent]:
+        """Return events in timeline order, starting strictly after the last ID seen."""
         stmt = (
             select(IncidentEvent)
             .where(IncidentEvent.incident_id == incident_id, IncidentEvent.id > after_id)
@@ -142,6 +145,7 @@ class ApprovalRepository:
         return (row[0], row[1]) if row is not None else None
 
     async def pending_for_incident(self, incident_id: uuid.UUID) -> list[Approval]:
+        """Lock pending approvals for a decision or cancellation in the caller's transaction."""
         stmt = (
             select(Approval)
             .where(Approval.incident_id == incident_id, Approval.status == ApprovalStatus.PENDING)

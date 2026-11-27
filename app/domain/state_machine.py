@@ -25,6 +25,7 @@ class InvalidTransitionError(Exception):
 
 
 def can_transition(current: IncidentStatus, target: IncidentStatus, *, by_operator: bool = False) -> bool:
+    """Allow workflow transitions and the additional operator exits from nonterminal states."""
     if target in TRANSITIONS[current]:
         return True
     return by_operator and current not in TERMINAL_STATUSES and target in _OPERATOR_TARGETS and target != current
@@ -48,6 +49,7 @@ def next_status_after_triage(result: TriageResult, *, remediation_mode: Remediat
 
 
 def next_status_after_rejection(reason: RejectionReason, *, reproposals: int, max_reproposals: int) -> IncidentStatus:
+    """Allow another triage attempt for a wrong action while the reproposal budget lasts."""
     match reason:
         case RejectionReason.FALSE_POSITIVE:
             return S.SUPPRESSED

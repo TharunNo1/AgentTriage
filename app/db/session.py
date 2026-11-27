@@ -15,10 +15,12 @@ def create_engine(settings: Settings) -> AsyncEngine:
 
 
 def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Keep loaded attributes readable after commit so callers can build responses outside the transaction."""
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
 @asynccontextmanager
 async def transaction(sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncIterator[AsyncSession]:
+    """Commit on normal exit and roll back if the caller raises."""
     async with sessionmaker() as session, session.begin():
         yield session
