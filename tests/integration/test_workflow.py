@@ -116,6 +116,7 @@ async def test_reject_wrong_action_reproposes_once_then_manual(client: AsyncClie
     assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"
     replacement = (await client.get(path, headers=OPERATOR)).json()
     assert replacement["approval_id"] != original["approval_id"]
+    # An operator who still has the original proposal on screen must review its replacement before approving.
     stale = await client.post(path, json={"decision": "approve", "approval_id": original["approval_id"]}, headers=OPERATOR)
     assert stale.status_code == 409
     assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"

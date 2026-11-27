@@ -60,6 +60,7 @@ async def _ingest[P: BaseModel](
     if not await container.guards.allow_request(principal.name, settings.rate_limit_per_minute):
         raise RateLimitedError("Rate limit exceeded")
 
+    # Replays use the original client's response and still count toward that client's request limit.
     if idempotency_key:
         cached = await container.guards.get_idempotent(principal.name, idempotency_key)
         if cached is not None:
@@ -95,6 +96,7 @@ async def alertmanager(
     x_triage_signature: Hdr = None,
     idempotency_key: Hdr = None,
 ) -> IngestResponse:
+    """Ingest a grouped webhook and return one outcome per alert in payload order."""
     return await _ingest(
         request,
         container,
@@ -118,6 +120,7 @@ async def gcp_monitoring(
     x_triage_signature: Hdr = None,
     idempotency_key: Hdr = None,
 ) -> IngestResponse:
+    """Ingest a Cloud Monitoring incident notification, including recovery updates."""
     return await _ingest(
         request,
         container,
@@ -141,6 +144,7 @@ async def generic(
     x_triage_signature: Hdr = None,
     idempotency_key: Hdr = None,
 ) -> IngestResponse:
+    """Ingest one signal using the generic webhook format."""
     return await _ingest(
         request,
         container,

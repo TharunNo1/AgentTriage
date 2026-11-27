@@ -15,6 +15,7 @@ from app.db.repositories import ApiClientRepository
 Scope = Literal["ingest", "operator", "viewer", "responder", "approver"]
 VALID_SCOPES = frozenset(get_args(Scope))
 Permission = Literal["read", "transition", "approval"]
+# Incident roles are additive. Webhook ingest credentials have a separate scope.
 INCIDENT_ROLES: dict[Permission, frozenset[str]] = {
     "read": frozenset({"viewer", "responder", "approver", "operator"}),
     "transition": frozenset({"responder", "operator"}),
@@ -48,6 +49,7 @@ def hash_api_key(key: str) -> str:
 
 
 def sign_body(secret: str, timestamp: str, body: bytes) -> str:
+    """Sign the timestamp and exact wire bytes, including any whitespace in the JSON body."""
     return "sha256=" + hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
 
 

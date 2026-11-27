@@ -5,6 +5,7 @@ import structlog
 
 
 def configure_logging(level: str = "INFO", json: bool = True) -> None:
+    """Route structlog and standard library records through the same renderer and context processors."""
     shared: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,

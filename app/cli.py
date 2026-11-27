@@ -9,6 +9,7 @@ from app.db.session import create_engine, create_sessionmaker, transaction
 
 
 async def _create(name: str, scopes: list[str]) -> None:
+    """Print the new key once its digest and scopes have committed successfully."""
     engine = create_engine(get_settings())
     try:
         async with transaction(create_sessionmaker(engine)) as session:

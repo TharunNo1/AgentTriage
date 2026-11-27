@@ -57,4 +57,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Read the environment once per process and reuse the validated settings."""
     return Settings()  # required fields are read from the environment

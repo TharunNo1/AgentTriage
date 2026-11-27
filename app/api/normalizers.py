@@ -29,6 +29,7 @@ _SEVERITY_ALIASES: dict[str, Severity] = {
 
 
 def parse_severity(value: str | None, default: Severity = Severity.HIGH) -> Severity:
+    """Map source-specific aliases to a common severity and use the default for missing or unfamiliar values."""
     return _SEVERITY_ALIASES.get((value or "").strip().lower(), default)
 
 
@@ -56,6 +57,7 @@ class AlertmanagerPayload(BaseModel):
 
 
 def from_alertmanager(payload: AlertmanagerPayload) -> list[AlertSignal]:
+    """Preserve each alert's firing or resolved status within a grouped notification."""
     signals = []
     for alert in payload.alerts:
         labels = alert.labels
@@ -107,6 +109,7 @@ class GcpMonitoringPayload(BaseModel):
 
 def from_gcp_monitoring(payload: GcpMonitoringPayload) -> list[AlertSignal]:
     inc = payload.incident
+    # A policy can supply a service label that is more specific than the monitored resource.
     labels = {**inc.resource.labels, **inc.policy_user_labels}
     service = (
         _first(labels, "service", "service_name", "container_name", "module_id", "function_name")

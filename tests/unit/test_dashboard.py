@@ -48,6 +48,7 @@ async def test_dashboard_and_incident_permissions(
     monkeypatch.setattr(IncidentRepository, "get", AsyncMock(return_value=None))
     monkeypatch.setattr(EventRepository, "for_incident", AsyncMock(return_value=[]))
     monkeypatch.setattr(ApprovalRepository, "pending_proposal", AsyncMock(return_value=None))
+    # A 409 from the fake workflow shows authorization succeeded and the action reached the service.
     workflow = SimpleNamespace(
         decide_approval=AsyncMock(side_effect=ConflictError("Workflow reached")),
         operator_transition=AsyncMock(side_effect=ConflictError("Workflow reached")),

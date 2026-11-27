@@ -1,4 +1,6 @@
 class DomainError(Exception):
+    """Carry the status and title used by the shared HTTP problem-details handler."""
+
     status_code = 400
     title = "Bad Request"
 
