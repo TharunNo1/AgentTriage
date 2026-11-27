@@ -37,6 +37,7 @@ class ResendNotifier:
         self._recipient = _mailbox(recipient, "TRIAGE_RESEND_TO_EMAIL")
 
     async def notify(self, notification: Notification) -> None:
+        """Use the queue job ID as the source of a stable idempotency key across attempts."""
         if not notification.delivery_id:
             raise EmailDeliveryError("Email delivery requires a notification job ID", retryable=False)
 

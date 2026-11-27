@@ -5,6 +5,8 @@ from arq.connections import ArqRedis
 
 
 class JobQueue(Protocol):
+    """Schedule workflow jobs by name, with optional deduplication keys and delayed delivery."""
+
     async def enqueue(self, job: str, *args: Any, job_id: str | None = None, defer_by: timedelta | None = None) -> None: ...
 
 

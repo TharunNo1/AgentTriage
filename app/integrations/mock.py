@@ -1,4 +1,4 @@
-"""Deterministic stand-ins for external systems. Used locally, in tests, and until real adapters land (Phase 2/3)."""
+"""Default adapters for local triage, simulated remediation, and offline tests."""
 
 import hashlib
 import re
@@ -21,6 +21,7 @@ class _Rule:
     summary: str
 
 
+# The first matching pattern determines the proposal when a signal mentions several failures.
 _RULES: list[_Rule] = [
     _Rule(
         re.compile(r"oomkilled|out of memory|exit code 137|sigkill|memory limit", re.I),

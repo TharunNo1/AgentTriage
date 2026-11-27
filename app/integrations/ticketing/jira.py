@@ -39,6 +39,7 @@ class JiraTicketing:
         self._auth = httpx.BasicAuth(email, token)
 
     async def sync(self, incident: IncidentSnapshot, comment: str, *, allow_create: bool = True) -> TicketRef:
+        """Update a known issue, create a reserved one, or recover its key by incident label after an uncertain create."""
         label = f"agent-triage-{incident.id}"
         document = {
             "type": "doc",
@@ -94,6 +95,7 @@ class JiraTicketing:
             result = _SearchResult.model_validate_json(response.content)
         except ValidationError:
             raise JiraSyncError("Jira issue search returned an invalid response") from None
+        # Updating an arbitrary match could overwrite a different issue when the label is ambiguous.
         if not result.isLast or len(result.issues) > 1:
             raise JiraSyncError("Multiple Jira issues match the incident label")
         if not result.issues:

@@ -154,6 +154,7 @@ class Worker:
         self.done = 0
 
     async def drain(self, *, skip: tuple[str, ...] = ("expire_approval",)) -> list[str]:
+        """Run queued work immediately, leaving approval expiry for tests that explicitly trigger it."""
         ran: list[str] = []
         while self.done < len(self.queue.jobs):
             job = self.queue.jobs[self.done]

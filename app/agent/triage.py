@@ -37,6 +37,8 @@ class Analysis(BaseModel):
 
 
 class StructuredTriageAgent:
+    """Validate the provider analysis and route every result to human escalation."""
+
     name = "gemini"
 
     def __init__(self, provider: LLMProvider) -> None:
@@ -44,6 +46,7 @@ class StructuredTriageAgent:
         self._instruction = files("app.agent").joinpath("prompts", f"{PROMPT_VERSION}.txt").read_text(encoding="utf-8")
 
     async def triage(self, ctx: TriageContext) -> tuple[TriageResult, AgentRunStats]:
+        # Keep alert text and operator feedback in the bounded evidence payload, separate from the versioned instruction.
         evidence = json.dumps(
             {
                 "service": ctx.service[:150],

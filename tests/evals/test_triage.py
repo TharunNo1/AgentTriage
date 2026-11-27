@@ -9,6 +9,8 @@ from app.domain.ports import TriageContext
 
 
 class ReplayProvider:
+    """Return a fixed model response to exercise the production prompt and output validation offline."""
+
     def __init__(self, response: str) -> None:
         self.response = response
 

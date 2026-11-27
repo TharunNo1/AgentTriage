@@ -21,6 +21,7 @@ class SlackNotifier:
         self._webhook = webhook
 
     async def notify(self, notification: Notification) -> None:
+        """Send event metadata only, keeping alert text and analysis out of Slack."""
         label = event_label(notification.kind)
         incident = notification.incident
         message = f"Agent Triage | {label}\nIncident {incident.id}\nSeverity {notification.severity.value}"

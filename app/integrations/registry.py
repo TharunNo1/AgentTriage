@@ -20,6 +20,7 @@ def build_integrations(
     notifier: Notifier | None = None,
     ticketing: Ticketing | None = None,
 ) -> Integrations:
+    """Wire supplied adapters to the workflow and reject live remediation while only the dry-run executor exists."""
     if settings.remediation_mode == "enabled":
         raise RuntimeError("TRIAGE_REMEDIATION_MODE=enabled requires a real remediation executor, which is not available yet")
     return Integrations(

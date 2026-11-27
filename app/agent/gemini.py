@@ -19,6 +19,7 @@ class GeminiProvider:
             self._client.close()
 
     async def generate(self, instruction: str, evidence: str, schema: type[BaseModel]) -> Generation:
+        """Require a completed generation before passing the text to the schema validator."""
         try:
             async with asyncio.timeout(30):
                 response = await self._client.aio.models.generate_content(
