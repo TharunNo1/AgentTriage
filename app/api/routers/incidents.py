@@ -38,6 +38,7 @@ async def list_incidents(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     cursor: str | None = None,
 ) -> IncidentPage:
+    """Return matching incidents newest first. Use next_cursor with the same filters to continue."""
     require_permission(principal, "read")
     async with container.sessionmaker() as session:
         rows, next_cursor = await IncidentRepository(session).page(status=status, service=service, limit=limit, cursor=cursor)
@@ -62,6 +63,7 @@ async def list_events(
     after_id: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> list[EventOut]:
+    """Return events whose ID exceeds after_id, ordered from oldest to newest."""
     require_permission(principal, "read")
     async with container.sessionmaker() as session:
         events = await EventRepository(session).for_incident(incident_id, after_id=after_id, limit=limit)
@@ -72,6 +74,7 @@ async def list_events(
 async def get_pending_proposal(
     incident_id: uuid.UUID, container: ContainerDep, principal: IncidentPrincipal
 ) -> PendingProposal | None:
+    """Return the pending action for review, or null when no unexpired proposal is available."""
     require_permission(principal, "read")
     async with container.sessionmaker() as session:
         proposal = await ApprovalRepository(session).pending_proposal(incident_id)

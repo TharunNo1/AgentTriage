@@ -58,6 +58,7 @@ class EventOut(BaseModel):
 
 class ApprovalDecision(BaseModel):
     decision: Literal["approve", "reject"]
+    # Dashboard clients echo the reviewed ID so an older page cannot approve a replacement proposal.
     approval_id: uuid.UUID | None = None
     reason: RejectionReason | None = None
     note: str | None = Field(default=None, max_length=2000)

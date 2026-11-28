@@ -28,6 +28,7 @@ settings = get_settings()
 
 
 async def startup(ctx: dict[str, Any]) -> None:
+    """Build worker-scoped clients and release acquired resources if a later adapter fails to start."""
     configure_logging(settings.log_level, settings.log_json)
     async with AsyncExitStack() as resources:
         agent = None
@@ -93,6 +94,7 @@ def _backoff(ctx: dict[str, Any]) -> timedelta:
 
 
 async def triage_incident(ctx: dict[str, Any], incident_id: str, operator_feedback: str | None = None) -> None:
+    """Back off after triage failures and request escalation when the final attempt fails."""
     try:
         await _wf(ctx).triage(uuid.UUID(incident_id), operator_feedback)
         JOBS.labels(job="triage_incident", outcome="ok").inc()
@@ -137,6 +139,7 @@ async def sync_ticket(ctx: dict[str, Any], incident_id: str) -> None:
 
 async def send_notification(ctx: dict[str, Any], incident_id: str, kind: str) -> None:
     try:
+        # Leave a margin inside Resend's 24-hour idempotency window for the final delivery attempt.
         if settings.notifier == "resend" and datetime.now(UTC) - ctx["enqueue_time"] >= timedelta(hours=23):
             raise EmailDeliveryError("Email notification is outside the retry window", retryable=False)
         await _wf(ctx).send_notification(uuid.UUID(incident_id), kind, delivery_id=ctx.get("job_id"))

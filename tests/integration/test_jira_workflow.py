@@ -19,6 +19,7 @@ async def test_jira_recovers_after_lost_create_response(
 ) -> None:
     incident_id = await _open(client, "Checksum mismatch")
     calls: list[tuple[str, str]] = []
+    # Hold the create response open so a second worker tries recovery before the issue is visible.
     create_started = asyncio.Event()
     release_create = asyncio.Event()
 

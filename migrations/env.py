@@ -17,6 +17,7 @@ target_metadata = Base.metadata
 
 
 def _url() -> str:
+    """Honor Alembic URL overrides so migrations can target an isolated test database."""
     return config.get_main_option("sqlalchemy.url") or str(get_settings().database_url)
 
 

@@ -35,6 +35,7 @@ class IngestResult:
 
 
 def triage_job_id(incident_id: uuid.UUID, attempt: int = 0) -> str:
+    """Reuse the queue key for retries and allocate a distinct key for each operator-requested reproposal."""
     return f"triage:{incident_id}:{attempt}"
 
 
@@ -45,6 +46,7 @@ class IngestService:
         self._queue = queue
 
     async def ingest(self, signal: AlertSignal, client_name: str) -> IngestResult:
+        """Deduplicate against open incidents and enqueue initial triage after a new incident commits."""
         fp = fingerprint(signal.service, signal.title, signal.message)
         if await self._guards.is_muted(fp):
             result = IngestResult(IngestOutcome.MUTED, fp)
@@ -65,6 +67,7 @@ class IngestService:
             incidents, events = IncidentRepository(session), EventRepository(session)
             incident = await incidents.get_open_by_fingerprint(fp)
             if incident is None:
+                # A recovery with no open incident has nothing to attach to.
                 if signal.status == SignalStatus.RESOLVED:
                     return IngestResult(IngestOutcome.IGNORED, fp)
                 incident = Incident(

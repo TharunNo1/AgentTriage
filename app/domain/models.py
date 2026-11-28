@@ -20,6 +20,7 @@ class IncidentStatus(StrEnum):
 
 
 TERMINAL_STATUSES = frozenset({IncidentStatus.RESOLVED, IncidentStatus.SUPPRESSED})
+# Manual and escalated incidents still collect matching signals while an operator investigates.
 OPEN_STATUSES = frozenset(set(IncidentStatus) - TERMINAL_STATUSES)
 
 
@@ -94,6 +95,8 @@ class AlertSignal:
 
 @dataclass(frozen=True, slots=True)
 class ProposedAction:
+    """An agent recommendation that the workflow evaluates before dispatching to an executor."""
+
     type: ActionType
     params: dict[str, Any]
     rationale: str
@@ -101,6 +104,8 @@ class ProposedAction:
 
 @dataclass(frozen=True, slots=True)
 class TriageResult:
+    """Classification and evidence used to select the next incident state."""
+
     tier: Tier
     severity: Severity
     error_class: str

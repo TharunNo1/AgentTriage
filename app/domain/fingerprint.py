@@ -1,6 +1,7 @@
 import hashlib
 import re
 
+# Match whole identifiers first. Replacing digits earlier would leave fragments of timestamps and pod names.
 _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"), "<uuid>"),
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[t ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:z|[+-]\d{2}:?\d{2})?\b"), "<ts>"),
@@ -21,5 +22,6 @@ def normalize_message(message: str) -> str:
 
 
 def fingerprint(service: str, title: str, message: str) -> str:
+    """Group signals across sources by service, title, and normalized message."""
     key = "|".join((service.strip().lower(), title.strip().lower(), normalize_message(message)))
     return hashlib.sha256(key.encode()).hexdigest()

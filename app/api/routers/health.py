@@ -15,6 +15,7 @@ async def healthz() -> dict[str, str]:
 
 @router.get("/readyz")
 async def readyz(container: ContainerDep) -> JSONResponse:
+    """Report database and Redis reachability and return 503 when either dependency is unavailable."""
     checks: dict[str, str] = {}
     try:
         async with container.sessionmaker() as session:

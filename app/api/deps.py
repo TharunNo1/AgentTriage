@@ -12,6 +12,8 @@ from app.services.workflow import Workflow
 
 @dataclass(slots=True)
 class Container:
+    """Services shared by requests for one application lifespan."""
+
     settings: Settings
     sessionmaker: async_sessionmaker[AsyncSession]
     guards: RedisGuards

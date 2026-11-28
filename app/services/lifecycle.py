@@ -28,6 +28,7 @@ def transition(
 
 
 def snapshot(incident: Incident) -> IncidentSnapshot:
+    """Copy the fields adapters need so they can work without an ORM session."""
     return IncidentSnapshot(
         id=incident.id,
         service=incident.service,

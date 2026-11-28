@@ -61,7 +61,10 @@ flowchart LR
    unanswered approval that expires → `ESCALATED` (see ADR 0006).
 4. **Remediation job**: executes the typed action via the Kubernetes executor (or records it in `dry_run`) →
    `VERIFYING` → deferred `verify_remediation`.
-5. **Verification job**: re-checks signals/logs → `RESOLVED` or `ESCALATED`.
+5. **Verification job**: finds the action's execution event on the incident timeline and counts firing signals attached
+   after it. Zero resolves the incident. A later firing signal or a missing execution event escalates it. Ingest and
+   action completion hold the same incident row lock when recording these events, so verification follows their order
+   even when worker and database clocks differ.
 
 Every transition appends to `incident_events`, which is the audit log and the source for the timeline API.
 

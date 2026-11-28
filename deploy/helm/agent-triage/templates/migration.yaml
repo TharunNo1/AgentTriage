@@ -3,6 +3,7 @@ kind: Job
 metadata:
   name: {{ include "triage.name" . }}-migrate
   annotations:
+    {{- /* Gate the new workloads on schema readiness and keep failed migration jobs available for inspection. */}}
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:

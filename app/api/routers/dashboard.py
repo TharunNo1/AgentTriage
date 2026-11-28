@@ -19,6 +19,7 @@ class DashboardSession(TypedDict):
 
 @router.get("/v1/dashboard/session")
 async def dashboard_session(container: ContainerDep, principal: IncidentPrincipal) -> DashboardSession:
+    """Return the signed-in client's dashboard capabilities and the configured remediation mode."""
     require_permission(principal, "read")
     return {
         "name": principal.name,

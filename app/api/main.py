@@ -33,6 +33,7 @@ def _problem(status: int, title: str, detail: str, request: Request) -> JSONResp
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    """Configure routes for these settings and open shared database and Redis pools during startup."""
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_json)
 
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         structlog.contextvars.bind_contextvars(request_id=request_id, path=request.url.path)
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
+        # Session capabilities and incident responses are specific to the authenticated client.
         if request.url.path.startswith(("/v1/incidents", "/v1/dashboard/")):
             response.headers["Cache-Control"] = "no-store"
         return response

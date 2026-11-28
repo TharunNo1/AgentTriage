@@ -30,12 +30,14 @@ class IncidentRepository:
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def get_open_by_fingerprint(self, fingerprint: str) -> Incident | None:
+        """Lock the matching open incident so concurrent ingests can update its occurrence count."""
         stmt = select(Incident).where(Incident.fingerprint == fingerprint, Incident.status.in_(OPEN_STATUSES)).with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def page(
         self, *, status: IncidentStatus | None, service: str | None, limit: int, cursor: str | None
     ) -> tuple[list[Incident], str | None]:
+        """Page newest first, using the incident ID to break ties between identical creation times."""
         stmt = select(Incident)
         if status is not None:
             stmt = stmt.where(Incident.status == status)
@@ -60,14 +62,6 @@ class IncidentRepository:
             .limit(limit)
         )
         return list((await self.session.execute(stmt)).scalars())
-
-    async def firing_signals_since(self, incident_id: uuid.UUID, since: datetime) -> int:
-        stmt = select(func.count()).where(
-            AlertSignalRow.incident_id == incident_id,
-            AlertSignalRow.status == SignalStatus.FIRING,
-            AlertSignalRow.received_at > since,
-        )
-        return int((await self.session.execute(stmt)).scalar_one())
 
 
 class EventRepository:
@@ -99,7 +93,27 @@ class EventRepository:
         stmt = select(IncidentEvent.id).where(IncidentEvent.incident_id == incident_id, IncidentEvent.type == type_).limit(1)
         return (await self.session.scalar(stmt)) is not None
 
+    async def firing_signals_after_action(self, incident_id: uuid.UUID, action_id: uuid.UUID) -> int | None:
+        """Count later firing events, or return None if the action has no execution event."""
+        # Ingest and execution append events under the same incident lock, which orders them across hosts.
+        execution = select(IncidentEvent.id).where(
+            IncidentEvent.incident_id == incident_id,
+            IncidentEvent.type == "remediation_executed",
+            IncidentEvent.data["action_id"].as_string() == str(action_id),
+        )
+        execution_id = await self.session.scalar(execution.order_by(IncidentEvent.id).limit(1))
+        if execution_id is None:
+            return None
+        firing = select(func.count()).where(
+            IncidentEvent.incident_id == incident_id,
+            IncidentEvent.id > execution_id,
+            IncidentEvent.type == "signal_attached",
+            IncidentEvent.data["signal_status"].as_string() == SignalStatus.FIRING.value,
+        )
+        return (await self.session.execute(firing)).scalar_one()
+
     async def for_incident(self, incident_id: uuid.UUID, *, after_id: int, limit: int) -> list[IncidentEvent]:
+        """Return events in timeline order, starting strictly after the last ID seen."""
         stmt = (
             select(IncidentEvent)
             .where(IncidentEvent.incident_id == incident_id, IncidentEvent.id > after_id)
@@ -142,6 +156,7 @@ class ApprovalRepository:
         return (row[0], row[1]) if row is not None else None
 
     async def pending_for_incident(self, incident_id: uuid.UUID) -> list[Approval]:
+        """Lock pending approvals for a decision or cancellation in the caller's transaction."""
         stmt = (
             select(Approval)
             .where(Approval.incident_id == incident_id, Approval.status == ApprovalStatus.PENDING)

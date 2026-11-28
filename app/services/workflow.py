@@ -48,8 +48,8 @@ _SUBJECTS: dict[str, str] = {
 class Workflow:
     """Drives incidents through the lifecycle (ADR 0006). Called by worker jobs and operator API endpoints.
 
-    External calls (agent, ticketing, executor, notifier) happen outside DB transactions; every step re-reads and
-    re-checks state under a row lock, so jobs are idempotent and safe to retry.
+    Triage releases the incident lock during model inference and checks the state again before applying the result.
+    Each status change and its timeline event share a transaction.
     """
 
     def __init__(
@@ -67,6 +67,7 @@ class Workflow:
         self._settings = settings
 
     async def triage(self, incident_id: uuid.UUID, operator_feedback: str | None = None) -> None:
+        """Analyze a new or retried incident and schedule follow-up work for the resulting state."""
         async with transaction(self._sessionmaker) as session:
             incident = await IncidentRepository(session).get(incident_id, for_update=True)
             if incident is None or incident.status not in (IncidentStatus.NEW, IncidentStatus.TRIAGING):
@@ -75,6 +76,7 @@ class Workflow:
                 transition(EventRepository(session), incident, IncidentStatus.TRIAGING, SYSTEM_ACTOR)
             signals = await IncidentRepository(session).recent_signals(incident_id)
             labels: dict[str, str] = {}
+            # The query returns newest first. Merge oldest first so the latest label value wins.
             for signal in reversed(signals):
                 labels.update({str(k): str(v) for k, v in signal.labels.items()})
             ctx = TriageContext(
@@ -148,6 +150,7 @@ class Workflow:
             await self._notify(incident_id, "escalated")
 
     async def execute_remediation(self, action_id: uuid.UUID) -> None:
+        """Run a proposed action for an incident in REMEDIATING and schedule verification on success."""
         async with transaction(self._sessionmaker) as session:
             action = await ActionRepository(session).get(action_id, for_update=True)
             if action is None or action.status != ActionStatus.PROPOSED:
@@ -198,14 +201,15 @@ class Workflow:
             incident = await incidents.get(action.incident_id, for_update=True)
             if incident is None or incident.status != IncidentStatus.VERIFYING:
                 return
-            new_signals = await incidents.firing_signals_since(incident.id, action.executed_at)
+            events = EventRepository(session)
+            new_signals = await events.firing_signals_after_action(incident.id, action.id)
             target = IncidentStatus.RESOLVED if new_signals == 0 else IncidentStatus.ESCALATED
-            transition(
-                EventRepository(session), incident, target, SYSTEM_ACTOR, data={"firing_signals_after_action": new_signals}
-            )
+            data = {"reason": "execution_event_missing"} if new_signals is None else {"firing_signals_after_action": new_signals}
+            transition(events, incident, target, SYSTEM_ACTOR, data=data)
         await self._notify(incident.id, "resolved" if target == IncidentStatus.RESOLVED else "escalated")
 
     async def expire_approval(self, approval_id: uuid.UUID) -> None:
+        """Handle the scheduled deadline if the approval is still pending."""
         async with transaction(self._sessionmaker) as session:
             approval = await ApprovalRepository(session).get(approval_id, for_update=True)
             if approval is None or approval.status != ApprovalStatus.PENDING:
@@ -244,6 +248,7 @@ class Workflow:
             if not pending:
                 raise ConflictError("Incident has no pending approval")
             approval = pending[0]
+            # A dashboard decision applies only to the unexpired proposal the operator reviewed.
             if approval_id is not None and (approval.id != approval_id or approval.expires_at <= datetime.now(UTC)):
                 raise ConflictError("The reviewed approval is no longer pending")
             approval.decided_by, approval.note, approval.decided_at = actor, note, datetime.now(UTC)
@@ -306,6 +311,7 @@ class Workflow:
         await self._notify(incident_id, "escalated")
 
     async def requeue_stuck(self) -> int:
+        """Resubmit old NEW incidents to recover from a failure between database commit and enqueue."""
         older_than = datetime.now(UTC) - timedelta(seconds=self._settings.stuck_incident_seconds)
         async with self._sessionmaker() as session:
             ids = await IncidentRepository(session).stuck_new(older_than)
@@ -341,6 +347,7 @@ class Workflow:
             )
 
     async def send_notification(self, incident_id: uuid.UUID, kind: str, *, delivery_id: str | None = None) -> None:
+        """Record the delivery event after the notifier returns successfully."""
         async with transaction(self._sessionmaker) as session:
             incident = await IncidentRepository(session).get(incident_id)
             if incident is None:

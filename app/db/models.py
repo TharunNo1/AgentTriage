@@ -24,6 +24,7 @@ JsonDict = JSON().with_variant(JSONB(), "postgresql")
 
 
 def _enum[E: enum.Enum](enum_cls: type[E], name: str) -> Enum:
+    """Store the domain enum values so database rows use the same strings as the API."""
     return Enum(enum_cls, name=name, values_callable=lambda e: [m.value for m in e], validate_strings=True)
 
 
@@ -62,6 +63,7 @@ class Incident(Base):
     signals: Mapped[list["AlertSignalRow"]] = relationship(back_populates="incident", order_by="AlertSignalRow.received_at")
 
     __mapper_args__ = {"version_id_col": version, "eager_defaults": True}  # noqa: RUF012
+    # Once an incident is terminal, the same failure can open a new incident with this fingerprint.
     __table_args__ = (
         Index(
             "uq_incidents_open_fingerprint",

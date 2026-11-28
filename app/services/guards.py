@@ -20,6 +20,7 @@ class RedisGuards:
         await self._redis.set(f"{_PREFIX}:mute:{fingerprint}", 1, ex=seconds)
 
     async def allow_request(self, client: str, limit_per_minute: int) -> bool:
+        """Count this request against the client's fixed minute window, including requests over the limit."""
         window = int(time.time() // 60)
         key = f"{_PREFIX}:rl:{client}:{window}"
         async with self._redis.pipeline(transaction=True) as pipe:
