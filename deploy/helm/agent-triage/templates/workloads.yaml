@@ -9,6 +9,7 @@ metadata:
   labels:
     {{- include "triage.selector" $context | nindent 4 }}
 spec:
+  {{- /* Omit replicas when the HPA owns the count so upgrades do not reset a scaled deployment. */}}
   {{- if not $settings.autoscaling.enabled }}
   replicas: {{ $settings.replicas }}
   {{- end }}

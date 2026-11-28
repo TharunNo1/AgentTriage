@@ -5,6 +5,7 @@ const statuses = ["NEW", "TRIAGING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFY
 const eventLimit = 50;
 const time = (value) => new Date(value).toLocaleString();
 const message = (value) => { byId("message").textContent = value; };
+// Keep the bearer token in page memory so signing out or leaving the page discards it.
 let token = "";
 let session;
 let controller;
@@ -36,6 +37,7 @@ function signOut() {
 byId("sign-out").addEventListener("click", () => { signOut(); byId("key").focus(); });
 window.addEventListener("pagehide", signOut);
 
+/** Run one user operation at a time and let sign-out cancel its pending requests. */
 async function run(task) {
   if (controller) return;
   const operation = new AbortController();
@@ -50,6 +52,7 @@ async function run(task) {
       message(error.message || "Request failed.");
     }
   } finally {
+    // An aborted operation can finish after a new sign-in has acquired its own controller.
     if (controller === operation) controller = undefined;
     if (!controller) document.body.removeAttribute("aria-busy");
   }
@@ -220,6 +223,7 @@ byId("filters").addEventListener("submit", (event) => {
 byId("more-incidents").addEventListener("click", () => run((signal) => loadIncidents(signal, true)));
 byId("more-events").addEventListener("click", () => run((signal) => loadEvents(current.id, signal)));
 
+/** Report refresh failures separately so an operator knows the change has already been saved. */
 async function submitAction(path, body, signal) {
   const { id } = current;
   await api(`/v1/incidents/${id}/${path}`, signal, body);
@@ -239,6 +243,7 @@ byId("approval").addEventListener("submit", (event) => {
   if (!session?.can_decide_approval || !current || !proposal) return;
   const decision = byId("decision").value;
   const reason = decision === "reject" ? byId("reason").value : null;
+  // Bind the decision to the proposal displayed here in case another operator has already requested a replacement.
   run((signal) => submitAction("approval", {
     approval_id: proposal.approval_id, decision, reason, note: byId("approval-note").value || null,
   }, signal));

@@ -28,6 +28,7 @@ server {
         try_files $uri =404;
     }
 
+    # Proxy only the endpoints used by the dashboard so it can use the API on the same origin.
     location ~ ^/(readyz|v1/dashboard/session|v1/incidents(/.*)?)$ {
         proxy_pass http://${TRIAGE_API_UPSTREAM};
         proxy_set_header Authorization $http_authorization;

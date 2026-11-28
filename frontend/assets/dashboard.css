@@ -1,5 +1,6 @@
 :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; color: #e4eef5; background: #111b25; }
 * { box-sizing: border-box; }
+/* Hidden session controls must stay hidden even when their layout rule sets display to flex or grid. */
 [hidden] { display: none !important; }
 body { margin: 0; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem max(5vw, 1rem); border-bottom: 1px solid #3e5367; background: #182634; }

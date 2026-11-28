@@ -30,6 +30,7 @@ if error=$(helm template triage "$chart" "${image[@]}" --set worker.autoscaling.
 fi
 grep -Fq 'worker.autoscaling.metricName is required when enabled' <<< "$error"
 
+# The dashboard ships as its own release and needs only an upstream API address and an image.
 dashboard_chart="$(dirname "$0")/dashboard"
 dashboard_values=(
   --set image=example.invalid/agent-triage-dashboard:ci
