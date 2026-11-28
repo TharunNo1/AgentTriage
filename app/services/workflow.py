@@ -201,11 +201,11 @@ class Workflow:
             incident = await incidents.get(action.incident_id, for_update=True)
             if incident is None or incident.status != IncidentStatus.VERIFYING:
                 return
-            new_signals = await incidents.firing_signals_since(incident.id, action.executed_at)
+            events = EventRepository(session)
+            new_signals = await events.firing_signals_after_action(incident.id, action.id)
             target = IncidentStatus.RESOLVED if new_signals == 0 else IncidentStatus.ESCALATED
-            transition(
-                EventRepository(session), incident, target, SYSTEM_ACTOR, data={"firing_signals_after_action": new_signals}
-            )
+            data = {"reason": "execution_event_missing"} if new_signals is None else {"firing_signals_after_action": new_signals}
+            transition(events, incident, target, SYSTEM_ACTOR, data=data)
         await self._notify(incident.id, "resolved" if target == IncidentStatus.RESOLVED else "escalated")
 
     async def expire_approval(self, approval_id: uuid.UUID) -> None:

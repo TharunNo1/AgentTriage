@@ -1,8 +1,11 @@
+from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from httpx import AsyncClient
 
+from app.db.repositories import EventRepository
 from tests.integration.conftest import INGEST_KEY, OPERATOR_KEY, FakeQueue, Worker
 
 pytestmark = pytest.mark.integration
@@ -12,10 +15,10 @@ OPERATOR = {"Authorization": f"Bearer {OPERATOR_KEY}"}
 DB_POOL = "FATAL: too many connections for role app"
 
 
-async def _open(client: AsyncClient, message: str, title: str = "Incident") -> str:
+async def _open(client: AsyncClient, message: str, title: str = "Incident", *, status: str = "firing") -> str:
     resp = await client.post(
         "/v1/alerts/generic",
-        json={"service": "checkout", "title": title, "message": message, "labels": {"namespace": "shop"}},
+        json={"service": "checkout", "title": title, "message": message, "labels": {"namespace": "shop"}, "status": status},
         headers=INGEST,
     )
     assert resp.status_code == 202, resp.text
@@ -43,14 +46,48 @@ async def test_tier1_auto_remediation_resolves(client: AsyncClient, worker: Work
     assert await _statuses(client, incident_id) == ["NEW", "TRIAGING", "REMEDIATING", "VERIFYING", "RESOLVED"]
 
 
-async def test_failed_verification_escalates(client: AsyncClient, worker: Worker, queue: FakeQueue) -> None:
-    incident_id = await _open(client, "container OOMKilled exit code 137")
+@pytest.mark.parametrize(
+    ("worker_year", "later_signal", "expected", "count"),
+    [(2100, "firing", "ESCALATED", 1), (2000, "resolved", "RESOLVED", 0)],
+)
+async def test_verification_counts_only_later_firing_signals(
+    client: AsyncClient,
+    worker: Worker,
+    queue: FakeQueue,
+    monkeypatch: pytest.MonkeyPatch,
+    worker_year: int,
+    later_signal: str,
+    expected: str,
+    count: int,
+) -> None:
+    message = "container OOMKilled exit code 137"
+    incident_id = await _open(client, message)
+    assert await _open(client, message) == incident_id
+    # Model workers on either side of the database clock, including actions recorded before an upgrade.
+    clock = Mock(wraps=datetime)
+    clock.now.return_value = datetime(worker_year, 1, 1, tzinfo=UTC)
+    monkeypatch.setattr("app.services.workflow.datetime", clock)
     await worker.drain(skip=("expire_approval", "verify_remediation"))
     assert (await _incident(client, incident_id))["status"] == "VERIFYING"
-    await _open(client, "container OOMKilled exit code 137")  # still firing after the action
+    assert await _open(client, message, status=later_signal) == incident_id
     verify = next(j for j in queue.jobs if j.name == "verify_remediation")
     await worker.run(verify)
+    await worker.run(verify)
+    assert (await _incident(client, incident_id))["status"] == expected
+    events = (await client.get(f"/v1/incidents/{incident_id}/events", headers=OPERATOR)).json()
+    assert [e["data"] for e in events if e["from_status"] == "VERIFYING"] == [{"firing_signals_after_action": count}]
+
+
+async def test_verification_escalates_when_execution_cannot_be_located(
+    client: AsyncClient, worker: Worker, queue: FakeQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    incident_id = await _open(client, "container OOMKilled exit code 137")
+    await worker.drain(skip=("verify_remediation",))
+    monkeypatch.setattr(EventRepository, "firing_signals_after_action", AsyncMock(return_value=None))
+    await worker.run(next(job for job in queue.jobs if job.name == "verify_remediation"))
     assert (await _incident(client, incident_id))["status"] == "ESCALATED"
+    events = (await client.get(f"/v1/incidents/{incident_id}/events", headers=OPERATOR)).json()
+    assert events[-1]["data"] == {"reason": "execution_event_missing"}
 
 
 async def test_tier3_escalates_without_action(client: AsyncClient, worker: Worker, queue: FakeQueue) -> None:
