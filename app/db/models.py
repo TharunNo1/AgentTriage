@@ -128,6 +128,11 @@ class RemediationAction(Base):
     result: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dispatch_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_actions_dispatch_due", "dispatch_due_at", "id", postgresql_where=text("dispatch_due_at IS NOT NULL")),
+    )
 
 
 class Approval(Base):

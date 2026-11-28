@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from httpx import AsyncClient
 
+from app.core.settings import Settings
 from app.db.repositories import EventRepository
 from tests.integration.conftest import INGEST_KEY, OPERATOR_KEY, FakeQueue, Worker
 
@@ -109,6 +110,49 @@ async def test_tier2_approval_then_resolves(client: AsyncClient, worker: Worker)
     assert again.status_code == 409
 
 
+async def test_approved_dry_run_recovers_lost_execution_and_verification(
+    client: AsyncClient, worker: Worker, queue: FakeQueue, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "verify_delay_seconds", 0)
+    incident_id = await _open(client, DB_POOL)
+    await worker.drain()
+    with monkeypatch.context() as outage:
+        outage.setattr(queue, "enqueue", AsyncMock(side_effect=ConnectionError("queue unavailable")))
+        response = await client.post(f"/v1/incidents/{incident_id}/approval", json={"decision": "approve"}, headers=OPERATOR)
+    assert response.status_code == 200
+    assert response.json()["status"] == "REMEDIATING"
+    await worker.wf.dispatch_due_approvals()
+    execute = next(job for job in queue.jobs if job.name == "execute_remediation")
+    with monkeypatch.context() as outage:
+        outage.setattr(queue, "enqueue", AsyncMock(side_effect=ConnectionError("queue unavailable")))
+        await worker.run(execute)
+    assert (await _incident(client, incident_id))["status"] == "VERIFYING"
+    await worker.wf.dispatch_due_approvals()
+    await worker.drain()
+    await worker.run(execute)
+    assert await _statuses(client, incident_id) == [
+        "NEW",
+        "TRIAGING",
+        "AWAITING_APPROVAL",
+        "REMEDIATING",
+        "VERIFYING",
+        "RESOLVED",
+    ]
+
+
+async def test_approved_dry_run_escalates_when_remediation_disabled(
+    client: AsyncClient, worker: Worker, queue: FakeQueue, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    incident_id = await _open(client, DB_POOL)
+    await worker.drain()
+    response = await client.post(f"/v1/incidents/{incident_id}/approval", json={"decision": "approve"}, headers=OPERATOR)
+    assert response.status_code == 200
+    monkeypatch.setattr(settings, "remediation_mode", "disabled")
+    await worker.drain()
+    assert (await _incident(client, incident_id))["status"] == "ESCALATED"
+    assert "verify_remediation" not in queue.names()
+
+
 async def test_reject_false_positive_suppresses_and_mutes(client: AsyncClient, worker: Worker) -> None:
     incident_id = await _open(client, DB_POOL)
     await worker.drain()
@@ -159,6 +203,26 @@ async def test_reject_wrong_action_reproposes_once_then_manual(client: AsyncClie
     assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"
     second = await client.post(path, json={**reject, "approval_id": replacement["approval_id"]}, headers=OPERATOR)
     assert second.json()["status"] == "MANUAL"
+
+
+@pytest.mark.parametrize("include_id", [False, True])
+async def test_expired_approval_refused_before_timer_runs(
+    client: AsyncClient, worker: Worker, queue: FakeQueue, settings: Settings, monkeypatch: pytest.MonkeyPatch, include_id: bool
+) -> None:
+    monkeypatch.setattr(settings, "approval_ttl_seconds", 0)
+    incident_id = await _open(client, DB_POOL)
+    await worker.drain()
+    expiry = next(job for job in queue.jobs if job.name == "expire_approval")
+    payload = {"decision": "approve"}
+    if include_id:
+        payload["approval_id"] = expiry.args[0]
+    path = f"/v1/incidents/{incident_id}/approval"
+    response = await client.post(path, json=payload, headers=OPERATOR)
+    assert response.status_code == 409
+    assert "execute_remediation" not in queue.names()
+    assert (await _incident(client, incident_id))["status"] == "AWAITING_APPROVAL"
+    await worker.run(expiry)
+    assert (await _incident(client, incident_id))["status"] == "ESCALATED"
 
 
 async def test_unanswered_approval_expires_to_escalated(client: AsyncClient, worker: Worker, queue: FakeQueue) -> None:

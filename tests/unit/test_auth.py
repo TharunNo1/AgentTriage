@@ -3,7 +3,16 @@ from typing import Any
 
 import pytest
 
-from app.api.auth import Principal, authenticate, generate_api_key, hash_api_key, require_scope, sign_body
+from app.api.auth import (
+    Permission,
+    Principal,
+    authenticate,
+    generate_api_key,
+    hash_api_key,
+    require_permission,
+    require_scope,
+    sign_body,
+)
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.settings import Settings
 
@@ -68,3 +77,12 @@ def test_require_scope() -> None:
     require_scope(Principal("x", frozenset({"operator"})), "operator")
     with pytest.raises(ForbiddenError):
         require_scope(Principal("x", frozenset({"ingest"})), "operator")
+
+
+@pytest.mark.parametrize("permission", ["read", "transition", "approval"])
+async def test_hmac_principal_cannot_access_incidents(permission: Permission) -> None:
+    ts = str(int(time.time()))
+    principal = await _auth("alertmanager", ts, sign_body("s3cret", ts, BODY))
+
+    with pytest.raises(ForbiddenError):
+        require_permission(principal, permission)

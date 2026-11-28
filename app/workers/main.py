@@ -163,9 +163,16 @@ async def requeue_stuck_incidents(ctx: dict[str, Any]) -> None:
         log.warning("requeued_stuck_incidents", count=count)
 
 
+async def dispatch_due_approvals(ctx: dict[str, Any]) -> None:
+    await _wf(ctx).dispatch_due_approvals()
+
+
 class WorkerSettings:
     functions = [triage_incident, execute_remediation, verify_remediation, expire_approval, sync_ticket, send_notification]  # noqa: RUF012
-    cron_jobs = [cron(requeue_stuck_incidents, second={0}, run_at_startup=True)]  # noqa: RUF012
+    cron_jobs = [  # noqa: RUF012
+        cron(requeue_stuck_incidents, second={0}, run_at_startup=True),
+        cron(dispatch_due_approvals, second={0}, run_at_startup=True),
+    ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(str(settings.redis_url))

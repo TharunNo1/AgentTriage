@@ -58,7 +58,8 @@ flowchart LR
    - Tier 3, policy `DENY`, or agent failure → `ESCALATED` → page on-call
 3. **Approval**: signed callback → `REMEDIATING` (approved). A rejection needs a reason and does not page:
    `false_positive` → `SUPPRESSED`, `handle_manually` → `MANUAL`, `wrong_action` → re-triage once. Only an
-   unanswered approval that expires → `ESCALATED` (see ADR 0006).
+   unanswered approval that expires → `ESCALATED` (see ADR 0006). The decision endpoint returns HTTP 409 once
+   the deadline passes, including while the expiry job is waiting to run.
 4. **Remediation job**: executes the typed action via the Kubernetes executor (or records it in `dry_run`) →
    `VERIFYING` → deferred `verify_remediation`.
 5. **Verification job**: finds the action's execution event on the incident timeline and counts firing signals attached
@@ -67,6 +68,9 @@ flowchart LR
    even when worker and database clocks differ.
 
 Every transition appends to `incident_events`, which is the audit log and the source for the timeline API.
+
+For newly approved dry-run actions, the approval transaction also persists the next delivery time. The worker
+recovers missed execution and verification jobs at startup and every minute. See [ADR 0020](adr/0020-approved-dry-run-delivery.md).
 
 ## Components
 
