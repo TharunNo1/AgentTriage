@@ -90,6 +90,13 @@ All of the above must pass before opening a PR.
 
 ## Coding standards
 
+### Frontend
+
+Use the `modern-web-guidance` skill before implementing or changing HTML, CSS, or client-side JavaScript.
+Search for the browser feature or UI pattern you are working on (for example, keyboard navigation in a dialog),
+then retrieve the matching guides. If the skill is missing from your checkout, follow the
+[upstream quickstart](https://github.com/GoogleChrome/modern-web-guidance#-quickstart).
+
 ### Python
 - Python 3.13, managed with `uv`. Add deps with `uv add`; commit `uv.lock`. Pin lower bounds; avoid brand-new releases.
 - Ruff for lint + format (line length 130). Mypy in strict mode for `app/` — no untyped defs, no bare `Any` in
