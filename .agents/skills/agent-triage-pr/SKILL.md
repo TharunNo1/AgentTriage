@@ -5,6 +5,9 @@ description: Prepare, open, or update an Agent Triage pull request, including lo
 
 # Prepare an Agent Triage PR
 
+Prefer Linux Bash for PR preparation and verification examples. On Windows with Ubuntu under WSL 2,
+run the commands from the repository root in Ubuntu. Honor an explicitly requested shell.
+
 1. Read the repository's AGENTS.md and .github/pull_request_template.md. For an existing PR, confirm the base,
    head SHA, author, assignees, and current body. Review the diff against its base and preserve existing issue links,
    decisions, and contributor notes when editing the body.

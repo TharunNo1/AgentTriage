@@ -74,6 +74,8 @@ the outer layers (ports-and-adapters). Integrations are accessed through `Protoc
 
 ## Commands
 
+Prefer Linux Bash for repository commands and copyable examples. On Windows, use Ubuntu under WSL 2 when available.
+
 ```bash
 uv sync --all-extras --dev          # install
 uv run ruff check . && uv run ruff format --check .
