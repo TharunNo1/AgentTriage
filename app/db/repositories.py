@@ -1,13 +1,13 @@
 import base64
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import DateTime, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AgentRun, AlertSignalRow, ApiClient, Approval, Incident, IncidentEvent, RemediationAction
-from app.domain.models import OPEN_STATUSES, ApprovalStatus, IncidentStatus, SignalStatus
+from app.domain.models import OPEN_STATUSES, ActionStatus, ApprovalStatus, IncidentStatus, SignalStatus
 
 
 def encode_cursor(created_at: datetime, incident_id: uuid.UUID) -> str:
@@ -132,6 +132,27 @@ class ActionRepository:
         if for_update:
             stmt = stmt.with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def claim_due_dispatches(self) -> list[tuple[uuid.UUID, ActionStatus]]:
+        now = await self.database_time()
+        stmt = (
+            select(RemediationAction)
+            .where(
+                RemediationAction.dispatch_due_at <= now,
+                RemediationAction.status.in_((ActionStatus.PROPOSED, ActionStatus.DRY_RUN)),
+            )
+            .order_by(RemediationAction.dispatch_due_at, RemediationAction.id)
+            .limit(100)
+            .with_for_update(skip_locked=True)
+        )
+        actions = (await self.session.scalars(stmt)).all()
+        for action in actions:
+            action.dispatch_due_at = now + timedelta(minutes=1)
+        return [(action.id, action.status) for action in actions]
+
+    async def database_time(self) -> datetime:
+        stmt = select(func.clock_timestamp(type_=DateTime(timezone=True)))
+        return (await self.session.execute(stmt)).scalar_one()
 
 
 class ApprovalRepository:

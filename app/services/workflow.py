@@ -4,11 +4,12 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.core.logging import get_logger
-from app.core.metrics import AGENT_LATENCY
+from app.core.metrics import AGENT_LATENCY, JOBS
 from app.core.settings import Settings
 from app.db.models import AgentRun, Approval, Incident, RemediationAction
 from app.db.repositories import ActionRepository, AgentRunRepository, ApprovalRepository, EventRepository, IncidentRepository
@@ -155,8 +156,21 @@ class Workflow:
             action = await ActionRepository(session).get(action_id, for_update=True)
             if action is None or action.status != ActionStatus.PROPOSED:
                 return
-            incident = await IncidentRepository(session).get(action.incident_id)
+            incident = await IncidentRepository(session).get(action.incident_id, for_update=True)
             if incident is None or incident.status != IncidentStatus.REMEDIATING:
+                action.dispatch_due_at = None
+                return
+            durable = action.dispatch_due_at is not None
+            if durable and self._settings.remediation_mode != "dry_run":
+                action.dispatch_due_at = None
+                action.status = ActionStatus.CANCELLED
+                transition(
+                    EventRepository(session),
+                    incident,
+                    IncidentStatus.ESCALATED,
+                    SYSTEM_ACTOR,
+                    data={"reason": "approved_dry_run_mode_changed", "action_id": str(action_id)},
+                )
                 return
             proposed = ProposedAction(type=ActionType(action.action_type), params=dict(action.params), rationale=action.rationale)
 
@@ -170,7 +184,8 @@ class Workflow:
                 return
             action.dry_run = dry_run
             action.result = outcome.detail
-            action.executed_at = datetime.now(UTC)
+            # Use the database clock for the durable verification deadline.
+            action.executed_at = await ActionRepository(session).database_time()
             action.status = (
                 (ActionStatus.DRY_RUN if dry_run else ActionStatus.SUCCEEDED) if outcome.succeeded else ActionStatus.FAILED
             )
@@ -178,10 +193,20 @@ class Workflow:
             events.add(
                 incident, "remediation_executed", SYSTEM_ACTOR, data={"action_id": str(action.id), "status": action.status.value}
             )
+            action.dispatch_due_at = None
+            if incident.status != IncidentStatus.REMEDIATING:
+                return
             target = IncidentStatus.VERIFYING if outcome.succeeded else IncidentStatus.ESCALATED
+            if durable and outcome.succeeded:
+                action.dispatch_due_at = action.executed_at + timedelta(seconds=self._settings.verify_delay_seconds)
             transition(events, incident, target, SYSTEM_ACTOR, data={"detail": outcome.detail})
 
         if outcome.succeeded:
+            if durable:
+                await self._dispatch_approval(
+                    action.id, verify=True, defer_by=timedelta(seconds=self._settings.verify_delay_seconds)
+                )
+                return
             await self._queue.enqueue(
                 "verify_remediation",
                 str(action.id),
@@ -194,11 +219,12 @@ class Workflow:
     async def verify_remediation(self, action_id: uuid.UUID) -> None:
         """Phase 1 verification: the incident is healthy if no new firing signals arrived after the action ran."""
         async with transaction(self._sessionmaker) as session:
-            action = await ActionRepository(session).get(action_id)
+            action = await ActionRepository(session).get(action_id, for_update=True)
             if action is None or action.executed_at is None:
                 return
             incidents = IncidentRepository(session)
             incident = await incidents.get(action.incident_id, for_update=True)
+            action.dispatch_due_at = None
             if incident is None or incident.status != IncidentStatus.VERIFYING:
                 return
             events = EventRepository(session)
@@ -248,12 +274,16 @@ class Workflow:
             if not pending:
                 raise ConflictError("Incident has no pending approval")
             approval = pending[0]
-            # A dashboard decision applies only to the unexpired proposal the operator reviewed.
-            if approval_id is not None and (approval.id != approval_id or approval.expires_at <= datetime.now(UTC)):
+            decided_at = datetime.now(UTC)
+            if approval.expires_at <= decided_at or (approval_id is not None and approval.id != approval_id):
                 raise ConflictError("The reviewed approval is no longer pending")
-            approval.decided_by, approval.note, approval.decided_at = actor, note, datetime.now(UTC)
+            approval.decided_by, approval.note, approval.decided_at = actor, note, decided_at
             events = EventRepository(session)
             if approve:
+                action = await ActionRepository(session).get(approval.action_id, for_update=True)
+                if action is None or action.status != ActionStatus.PROPOSED:
+                    raise ConflictError("The proposed action is no longer available")
+                action.dispatch_due_at = await ActionRepository(session).database_time()
                 approval.status = ApprovalStatus.APPROVED
                 events.add(incident, "approval_decided", actor, data={"decision": "approved", "note": note})
                 transition(events, incident, target, actor)
@@ -272,7 +302,7 @@ class Workflow:
             action_id = approval.action_id
 
         if approve:
-            await self._queue.enqueue("execute_remediation", str(action_id), job_id=f"execute:{action_id}")
+            await self._dispatch_approval(action_id, verify=False)
         elif retriage_attempt is not None:
             await self._queue.enqueue(
                 "triage_incident", str(incident_id), note, job_id=triage_job_id(incident_id, retriage_attempt)
@@ -318,6 +348,21 @@ class Workflow:
         for incident_id in ids:
             await self._queue.enqueue("triage_incident", str(incident_id), job_id=triage_job_id(incident_id))
         return len(ids)
+
+    async def dispatch_due_approvals(self) -> None:
+        async with transaction(self._sessionmaker) as session:
+            due = await ActionRepository(session).claim_due_dispatches()
+        for action_id, status in due:
+            await self._dispatch_approval(action_id, verify=status == ActionStatus.DRY_RUN)
+
+    async def _dispatch_approval(self, action_id: uuid.UUID, *, verify: bool, defer_by: timedelta | None = None) -> None:
+        job, prefix = ("verify_remediation", "verify") if verify else ("execute_remediation", "execute")
+        try:
+            await self._queue.enqueue(job, str(action_id), job_id=f"{prefix}:{action_id}", defer_by=defer_by)
+        except (OSError, RedisError):
+            # The committed deadline remains eligible for the periodic dispatcher.
+            log.warning("approval_dispatch_deferred", action_id=str(action_id), job=job)
+            JOBS.labels(job=job, outcome="dispatch_deferred").inc()
 
     async def sync_ticket(self, incident_id: uuid.UUID) -> None:
         jira_enabled = self._settings.ticketing == "jira"
